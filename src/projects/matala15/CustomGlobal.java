@@ -38,18 +38,22 @@ package projects.matala15;
 
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.Vector;
 
+import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.nodeImplementations.BasicNode;
-import sinalgo.nodes.Connections;
+import sinalgo.models.ConnectivityModelHelper;
 import sinalgo.nodes.Node.NodePopupMethod;
 import sinalgo.nodes.Position;
+import sinalgo.nodes.edges.Edge;
 import sinalgo.runtime.AbstractCustomGlobal;
 import sinalgo.runtime.Runtime;
 import sinalgo.tools.Tools;
+import sinalgo.tools.logging.Logging;
+import sinalgo.tools.statistics.Distribution;
 
 /**
  * This class holds customized global state and methods for the framework. 
@@ -74,10 +78,12 @@ import sinalgo.tools.Tools;
  */
 public class CustomGlobal extends AbstractCustomGlobal{
 	
+	Logging logger = Logging.getLogger();
+	Random random = Distribution.getRandom(); // Use configuration seed
 	Vector<BasicNode> graphNodes = new Vector<BasicNode>();
 	
 	// Number of nodes to create
-	int numOfNodes = 100;
+	int numOfNodes = 20;
 	
 	// I set seed so each time I click on the button, it generates exactly the same graph each time
 	// We can later change this to not use seed, so its random. But for testing purposes I use seed.
@@ -117,6 +123,8 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		// Create connections randomly automatically
 //		Tools.reevaluateConnections();
 		
+		long numTotalEdges = 0;
+		
 		// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 		for (BasicNode currentNode : graphNodes) {
 			Position pos1 = currentNode.getPosition();
@@ -142,23 +150,57 @@ public class CustomGlobal extends AbstractCustomGlobal{
 			// Connect to closest neighbor that has less than 7 edges
 			for (Pair<Double, BasicNode> pair : distances) {
 				BasicNode other = pair.getB();
-				if (currentNode.equals(other))
+				if (currentNode.equals(other) || currentNode.isConnectedTo(other))
 					continue;
 				
-				int curEdges = currentNode.outgoingConnections.size();
-				if (curEdges >= 7)
+				int numNeighbors = currentNode.getNeighbors().size();
+				int otherNumNeighbors = other.getNeighbors().size();
+				if (numNeighbors >= 7)
 					break;
+				if (otherNumNeighbors >= 7)
+					continue;
 				
-				int edges = other.outgoingConnections.size();
-				if (edges < 7) {
-					currentNode.addConnectionTo(other);
-					other.addConnectionTo(currentNode);
+				// Add edge (both are not connected[first 'if'], and their number of edges is OK)
+				currentNode.addBidirectionalConnectionTo(other);
+				//logger.logln("Node " + currentNode + " connects to " + other);
+				currentNode.addNighbor(other);
+				other.addNighbor(currentNode);
+				numTotalEdges ++;
+				
+				//int curOutSize = currentNode.outgoingConnections.size();
+				//int otherOutSize = other.outgoingConnections.size();
+				//logger.logln("curOutSize, otherOutSize = " + curOutSize + ", " + otherOutSize);
+				
+				// Generate weight for the added edge
+				int weight = random.nextInt(1_000_000_000) + 1;
+				// Find the added edge
+				for (Edge e : currentNode.outgoingConnections) {
+					if (e.endNode.equals(other)) {
+						WeightedEdge weightedEdge = (WeightedEdge) e;
+						//logger.logln("Edge added: " + weightedEdge);
+						weightedEdge.setWeight(weight);
+						weightedEdge.setIsDraw(true);
+					}
+				}
+				// Find the second added edge (bidirectional = 2 edges)
+				for (Edge e : other.outgoingConnections) {
+					if (e.endNode.equals(currentNode)) {
+						WeightedEdge weightedEdge = (WeightedEdge) e;
+						weightedEdge.setWeight(weight); // We set the weight so both unidirectional edges have the same weight
+						weightedEdge.setIsDraw(false); // We only want to draw text once per edge
+					}
 				}
 			}
 		}
 		
-		// Finalize
+		logger.logln("Total number of edges: " + numTotalEdges);
+			
+		// Finalize (no idea why without this line, I don't see the nodes/edges)
 		for (BasicNode node : graphNodes) {
+//			logger.logln("Node: " + node);
+//			for (Edge e : node.outgoingConnections) {
+//				logger.logln("Edge: " + (WeightedEdge)e);	
+//			}
 			node.finishInitializationWithDefaultModels(true);
 		}
 		

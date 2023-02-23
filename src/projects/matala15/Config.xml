@@ -38,7 +38,7 @@
 		<canReceiveMultiplePacketsInParallel value="true" />
 
 		<!--The default type of edges to be used-->
-		<edgeType value="sample5:BigEdge" />
+		<edgeType value="matala15:WeightedEdge" />
 
 		<!--If set to true, the application exits as soon as the termination criteria is met. This flag only affects the GUI mode.-->
 		<exitOnTerminationInGUI value="false" />
