@@ -37,15 +37,20 @@
 package projects.matala15;
 
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.Vector;
 
+import javax.swing.JOptionPane;
+
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.nodeImplementations.BasicNode;
+import sinalgo.configuration.Configuration;
 import sinalgo.models.ConnectivityModelHelper;
+import sinalgo.nodes.Node;
 import sinalgo.nodes.Node.NodePopupMethod;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.Edge;
@@ -79,53 +84,19 @@ import sinalgo.tools.statistics.Distribution;
 public class CustomGlobal extends AbstractCustomGlobal{
 	
 	Logging logger = Logging.getLogger();
-	Random random = Distribution.getRandom(); // Use configuration seed
 	Vector<BasicNode> graphNodes = new Vector<BasicNode>();
 	
-	// Number of nodes to create
-	int numOfNodes = 20;
-	
-	// I set seed so each time I click on the button, it generates exactly the same graph each time
-	// We can later change this to not use seed, so its random. But for testing purposes I use seed.
-	long randomSeed = 2023;
+	Random random = Distribution.getRandom(); // Use configuration seed
+	long randomSeed = Distribution.getSeed(); // Get seed from configuration
 	
 	// For generating nodes positions randomly on the surface (taken from defaultProject)
 	projects.matala15.models.distributionModels.Random
 		randomDistrubutionModel = new projects.matala15.models.distributionModels.Random(randomSeed);
 	
-	// For generating nodes edges randomly (taken from defaultProject)
-	double rMax = 50;
-	projects.matala15.models.connectivityModels.UDG 
-		unitDiskConnectivity = new projects.matala15.models.connectivityModels.UDG(rMax);
-	
-	@Override
-	public void preRun() {
-		super.preRun();
-	}
-	
-	public boolean hasTerminated() {
-		return false;
-	}
-
-	@AbstractCustomGlobal.CustomButton(buttonText="Build Sample Graph", toolTipText="Builds a sample graph")
-	public void buildSampleGraph() {
-		// remove all nodes (if any)
-		Runtime.clearAllNodes();
-		graphNodes.clear();
-				
-		// Create nodes
-		for (int i = 0; i < numOfNodes; i++) {
-			BasicNode basicNode = new BasicNode();
-			basicNode.setPosition(randomDistrubutionModel.getNextPosition());
-			graphNodes.add(basicNode);
-		}
-		
-		// Create connections randomly automatically
-//		Tools.reevaluateConnections();
-		
+	// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
+	private void addSevenEdgesPerNode() {
+		logger.logln("Adding 7 edges...");
 		long numTotalEdges = 0;
-		
-		// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 		for (BasicNode currentNode : graphNodes) {
 			Position pos1 = currentNode.getPosition();
 			List<Pair<Double, BasicNode>> distances = new ArrayList<>();
@@ -192,9 +163,37 @@ public class CustomGlobal extends AbstractCustomGlobal{
 				}
 			}
 		}
-		
 		logger.logln("Total number of edges: " + numTotalEdges);
-			
+	}
+
+	@AbstractCustomGlobal.CustomButton(buttonText="Build Sample Graph", toolTipText="Builds a sample graph")
+	public void buildSampleGraph() {
+		// remove all nodes (if any)
+		Runtime.clearAllNodes();
+		graphNodes.clear();
+		
+		// Number of nodes to create
+		int defaultNumOfNodes = 20;
+		int numOfNodes;
+		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
+		try {
+			numOfNodes = Integer.parseInt(strNumNodes);			
+		} catch(NumberFormatException e) {
+			numOfNodes = defaultNumOfNodes;
+		}
+		
+		// Create nodes
+		for (int i = 0; i < numOfNodes; i++) {
+			BasicNode node = new BasicNode();
+			node.setPosition(randomDistrubutionModel.getNextPosition());
+			graphNodes.add(node);
+		}		
+		
+		// Add edges
+		addSevenEdgesPerNode();
+		//Tools.reevaluateConnections();
+		
+		
 		// Finalize (no idea why without this line, I don't see the nodes/edges)
 		for (BasicNode node : graphNodes) {
 //			logger.logln("Node: " + node);
@@ -204,15 +203,48 @@ public class CustomGlobal extends AbstractCustomGlobal{
 			node.finishInitializationWithDefaultModels(true);
 		}
 		
+		logTotalDirectedEdges();
+		
 		// Repaint the GUI as we have added some nodes
 		Tools.repaintGUI();
 	}
 	
-	//TODO: Ask user how many nodes
-//	@AbstractCustomGlobal.CustomButton(buttonText="Build Custom Graph", toolTipText="Builds a custom graph")
-//	public void buildCustomGraph() {
-//		
-//	}
+	@Override
+	public void preRun() {
+		super.preRun();
+		logger.logln("preRun");
+		
+		logTotalDirectedEdges();
+	}
+	
+	@Override
+	public void preRound() {
+		super.preRound();
+		logger.logln("preRound");
+
+		logTotalDirectedEdges();
+	}
+	
+	@Override
+	public void postRound() {
+		super.postRound();
+		logger.logln("postRound");
+		
+		logTotalDirectedEdges();
+	}
+	
+	@Override
+	public boolean hasTerminated() {
+		return false;
+	}
+	
+	private void logTotalDirectedEdges() {
+		int totalDirectedEdges = 0;
+		for(Node n : Tools.getNodeList()) {
+			totalDirectedEdges += n.outgoingConnections.size();
+		}
+		logger.logln("Total directed edges: " + totalDirectedEdges);
+	}
 	
 	@NodePopupMethod(menuText="Multicast 2")
 	public void myPopupMethod() {

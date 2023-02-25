@@ -1,0 +1,1 @@
+When I go 1 step in simulation all the edges become invinsible

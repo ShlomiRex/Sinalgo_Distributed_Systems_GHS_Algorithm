@@ -23,7 +23,7 @@
 		<asynchronousMode value="false" />
 
 		<!--If set to true, the runtime obtains for each node a new position from the mobility model at the beginning of each round. This flag needs to be turned on if the chosen  mobility model of any node may change the node's position. Set this flag to FALSE for static graphs whose nodes do never change their position to increase performance.-->
-		<mobility value="false" />
+		<mobility value="true" />
 
 		<!--If set to true, the chosen interference model is called at the end of every round to test for interferring packets. To increase performance, set this flag to FALSE if you do not consider interference.-->
 		<interference value="false" />
@@ -107,7 +107,7 @@
 		<wheelZoomStep value="1.05" />
 
 		<!--The minimum required zoom-->
-		<minZoomFactor value="0.05" />
+		<minZoomFactor value="0.02" />
 
 		<!--If set to true, the nodes are ordered according to their  elevation before drawing, such that nodes closer to the  viewer are drawn on top. This setting only applies to 3D.-->
 		<draw3DGraphNodesInProperOrder value="true" />
@@ -134,7 +134,7 @@
 		<DefaultMessageTransmissionModel value="ConstantTime" />
 
 		<!--Default connectivity model used when none is specified-->
-		<DefaultConnectivityModel value="UDG" />
+		<DefaultConnectivityModel value="StaticConnectivity" />
 
 		<!--Default distribution model used when none is specified-->
 		<DefaultDistributionModel value="Random" />
