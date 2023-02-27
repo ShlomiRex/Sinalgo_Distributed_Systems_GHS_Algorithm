@@ -150,7 +150,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 						WeightedEdge weightedEdge = (WeightedEdge) e;
 						//logger.logln("Edge added: " + weightedEdge);
 						weightedEdge.setWeight(weight);
-						weightedEdge.setIsDraw(true);
+						weightedEdge.setIsDrawWeight(true);
 					}
 				}
 				// Find the second added edge (bidirectional = 2 edges)
@@ -158,7 +158,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 					if (e.endNode.equals(currentNode)) {
 						WeightedEdge weightedEdge = (WeightedEdge) e;
 						weightedEdge.setWeight(weight); // We set the weight so both unidirectional edges have the same weight
-						weightedEdge.setIsDraw(false); // We only want to draw text once per edge
+						weightedEdge.setIsDrawWeight(false); // We only want to draw text once per edge
 					}
 				}
 			}
@@ -173,7 +173,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 10;
+		int defaultNumOfNodes = 5; // TODO: Change to higher number
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {

@@ -22,10 +22,12 @@ import sinalgo.tools.logging.Logging;
  */
 public class BasicNode extends Node {
 	
-	List<BasicNode> neighbors = new ArrayList<>();
 	Logging logger = Logging.getLogger();
-	boolean isServer = false;
-	WeightedEdge mwoe = null;
+	
+	List<BasicNode> neighbors = new ArrayList<>(); // List of neighbor nodes.
+	boolean isServer = false; // Only 1 node in the graph is server, and is chosen at round=0 only.
+	WeightedEdge mwoe = null; // Current Minimum Weight Outgoing Edge
+	BasicNode mstParent = null; // Current Minimum Spanning Tree parent
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -61,7 +63,7 @@ public class BasicNode extends Node {
 	}
 
 	@Override
-	public void handleMessages(Inbox inbox) {			
+	public void handleMessages(Inbox inbox) {
 		while(inbox.hasNext()) {
 			Message m = inbox.next();
 			Node sender = inbox.getSender();
@@ -91,6 +93,10 @@ public class BasicNode extends Node {
 		// Broadcast
 		Message message = new MWOEMessage(mwoe.getWeight());
 		broadcast(message);
+		
+		// Set MST parent
+		mstParent = (BasicNode) mwoe.endNode;
+		mwoe.setIsDrawDirected(true);
 	}
 
 	@Override
