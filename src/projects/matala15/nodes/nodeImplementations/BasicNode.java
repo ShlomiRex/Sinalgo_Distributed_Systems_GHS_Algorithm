@@ -7,12 +7,14 @@ import java.util.List;
 
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
+import projects.matala15.nodes.messages.MWOEMessage;
 import sinalgo.configuration.WrongConfigurationException;
 import sinalgo.gui.transformation.PositionTransformation;
 import sinalgo.nodes.Node;
 import sinalgo.nodes.Node.NodePopupMethod;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.nodes.messages.Inbox;
+import sinalgo.nodes.messages.Message;
 import sinalgo.tools.logging.Logging;
 
 /**
@@ -60,7 +62,15 @@ public class BasicNode extends Node {
 
 	@Override
 	public void handleMessages(Inbox inbox) {			
-		
+		while(inbox.hasNext()) {
+			Message m = inbox.next();
+			Node sender = inbox.getSender();
+			if (m instanceof MWOEMessage) {
+				MWOEMessage msg = (MWOEMessage) m;
+				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);				
+			}
+			
+		}
 	}
 
 	@Override
@@ -75,7 +85,12 @@ public class BasicNode extends Node {
 
 	@Override
 	public void preStep() {
+		// Get MWOE
 		mwoe = getMWOE();
+		
+		// Broadcast
+		Message message = new MWOEMessage(mwoe.getWeight());
+		broadcast(message);
 	}
 
 	@Override
