@@ -42,11 +42,14 @@ public class WeightedEdge extends BidirectionalEdge {
 		int x = (int) ((toX + fromX)/2);
 		int y = (int) ((toY + fromY)/2);
 		
-		g.drawString(""+this.weight, x, y);
+		String nice_weight = String.format("%,d", weight);
+		g.drawString(nice_weight, x, y);
 	}
 	
 	@Override
 	public String toString() {
-		return "WeightedEdge("+weight+", " + isDraw + ")";
+		// isDraw is not relevant, because tooltip shows only visible edge anyway
+		String nice_weight = String.format("%,d", weight); // Add commas for big numbers to read better
+		return "WeightedEdge("+ nice_weight +", " + startNode.ID + ", " + endNode.ID + ")";
 	}
 }

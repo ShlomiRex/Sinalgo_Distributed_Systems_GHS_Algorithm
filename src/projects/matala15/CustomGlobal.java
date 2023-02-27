@@ -173,7 +173,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 20;
+		int defaultNumOfNodes = 10;
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {
@@ -246,8 +246,5 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		logger.logln("Total directed edges: " + totalDirectedEdges);
 	}
 	
-	@NodePopupMethod(menuText="Multicast 2")
-	public void myPopupMethod() {
-		System.out.println("OK");
-	}
+	
 }
