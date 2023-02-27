@@ -122,16 +122,11 @@ public class BasicNode extends Node {
 	public void postStep() {
 	}
 	
-	@Override
-	public void draw(Graphics g, PositionTransformation pt, boolean highlight) {
-		if (isServer) {
-			setColor(Color.YELLOW);
-		}
-		
-		int fontSize = 22;
-		this.drawNodeAsDiskWithText(g, pt, highlight, ""+ID, fontSize, Color.WHITE);
-		
-		// Draw fragment ID above the node
+	/**
+	 * Draw fragment ID above the node
+	 * Returns the width, height according to zoom factor, font size and more.
+	 */
+	private Pair<Integer, Integer> drawFragmentId(Graphics g, PositionTransformation pt, int fontSize) {
 		String fragmentIdString = ""+fragmentId;
 		
 		// Source taken from 'Node.drawNodeAsDiskWithText()'
@@ -144,15 +139,50 @@ public class BasicNode extends Node {
 		g.setColor(Color.RED);
 		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -2;
 		g.drawString(fragmentIdString, pt.guiX - w/2, pt.guiY + h/2 + yOffset);
+		
+		return new Pair<Integer, Integer>(w, h);
+	}
+	
+	private void drawAsServerNode(Graphics g, PositionTransformation pt, int width, int height) {
+		int d = Math.max(width, height);
+		
+		g.setColor(Color.YELLOW);
+		g.fillRect(pt.guiX - width, pt.guiY + height, d, d);
+		
+		g.setColor(Color.BLACK);
+		g.drawRect(pt.guiX - width, pt.guiY + height, d, d);
+	}
+	
+	@Override
+	public void draw(Graphics g, PositionTransformation pt, boolean highlight) {
+		int fontSize = 22;
+		highlight = (fragmentLeaderId == ID); // Highlight the node if its the leader in the fragment
+		
+		// Draw the node
+		this.drawNodeAsDiskWithText(g, pt, highlight, ""+ID, fontSize, Color.WHITE);
+		
+		// Draw fragment ID above the node
+		Pair<Integer, Integer> widthHeight = drawFragmentId(g, pt, fontSize);
+		
+		// If node is server, add indicator (yellow rectangle) below the node
+		if (isServer)
+			drawAsServerNode(g, pt, widthHeight.getA(), widthHeight.getB());
 	}
 	
 	@Override
 	public String toString() {
-		if (mwoe == null) {
-			return "BasicNode("+this.ID+", Fragment: " + fragmentId + ")";	
+		StringBuilder builder = new StringBuilder();
+		builder.append("BasicNode(").append(this.ID).append(", Fragment: ").append(fragmentId);
+		
+		if (isServer) {
+			builder.append(", Server Node");
 		} else {
-			return "BasicNode("+this.ID+", Fragment: " + fragmentId + ", MWOE:" + mwoe + ")";	
+			if (mwoe != null) {
+				builder.append(", MWOE: ").append(mwoe);
+			}
 		}
+		builder.append(")");
+		return builder.toString();
 	}
 	
 	@NodePopupMethod(menuText="Select as a server")

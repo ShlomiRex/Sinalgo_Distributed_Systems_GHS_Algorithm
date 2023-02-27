@@ -239,11 +239,11 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	}
 	
 	private void logTotalDirectedEdges() {
-		int totalDirectedEdges = 0;
-		for(Node n : Tools.getNodeList()) {
-			totalDirectedEdges += n.outgoingConnections.size();
-		}
-		//logger.logln("Total directed edges: " + totalDirectedEdges);
+//		int totalDirectedEdges = 0;
+//		for(Node n : Tools.getNodeList()) {
+//			totalDirectedEdges += n.outgoingConnections.size();
+//		}
+//		logger.logln("Total directed edges: " + totalDirectedEdges);
 	}
 	
 	
