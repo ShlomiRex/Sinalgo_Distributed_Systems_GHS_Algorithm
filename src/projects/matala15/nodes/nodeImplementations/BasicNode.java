@@ -1,6 +1,8 @@
 package projects.matala15.nodes.nodeImplementations;
 
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +30,8 @@ public class BasicNode extends Node {
 	boolean isServer = false; // Only 1 node in the graph is server, and is chosen at round=0 only.
 	WeightedEdge mwoe = null; // Current Minimum Weight Outgoing Edge
 	BasicNode mstParent = null; // Current Minimum Spanning Tree parent
+	int fragmentId = ID; // The fragment identifier (for GUI so its easier to debug)
+	int fragmentLeaderId = ID; // The fragment leader (id)
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -58,6 +62,10 @@ public class BasicNode extends Node {
 		return mwoe;
 	}
 	
+	public int getFragmentId() {
+		return fragmentId;
+	}
+	
 	@Override
 	public void checkRequirements() throws WrongConfigurationException {
 	}
@@ -66,10 +74,20 @@ public class BasicNode extends Node {
 	public void handleMessages(Inbox inbox) {
 		while(inbox.hasNext()) {
 			Message m = inbox.next();
-			Node sender = inbox.getSender();
+			BasicNode sender = (BasicNode) inbox.getSender();
 			if (m instanceof MWOEMessage) {
 				MWOEMessage msg = (MWOEMessage) m;
-				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);				
+				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);
+				if (mwoe.getWeight() == msg.weight) {
+					// Both nodes chosen the same edge to be MWOE
+					// Only one becomes leader, by higher ID
+					if (ID > sender.ID) {
+						fragmentLeaderId = ID;
+					} else {
+						fragmentLeaderId = sender.ID;
+						fragmentId = sender.getFragmentId();
+					}
+				}
 			}
 			
 		}
@@ -95,6 +113,7 @@ public class BasicNode extends Node {
 		broadcast(message);
 		
 		// Set MST parent
+		logger.logln("Node " + mwoe.endNode.ID + " becomes parent of node " + ID);
 		mstParent = (BasicNode) mwoe.endNode;
 		mwoe.setIsDrawDirected(true);
 	}
@@ -109,15 +128,30 @@ public class BasicNode extends Node {
 			setColor(Color.YELLOW);
 		}
 		
-		super.draw(g, pt, highlight);
+		int fontSize = 22;
+		this.drawNodeAsDiskWithText(g, pt, highlight, ""+ID, fontSize, Color.WHITE);
+		
+		// Draw fragment ID above the node
+		String fragmentIdString = ""+fragmentId;
+		
+		// Source taken from 'Node.drawNodeAsDiskWithText()'
+		Font font = new Font(null, 0, (int) (fontSize * pt.getZoomFactor())); 
+		g.setFont(font);
+		FontMetrics fm = g.getFontMetrics(font); 
+		int h = (int) Math.ceil(fm.getHeight());
+		int w = (int) Math.ceil(fm.stringWidth(fragmentIdString));
+		
+		g.setColor(Color.RED);
+		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -2;
+		g.drawString(fragmentIdString, pt.guiX - w/2, pt.guiY + h/2 + yOffset);
 	}
 	
 	@Override
 	public String toString() {
 		if (mwoe == null) {
-			return "BasicNode("+this.ID+")";	
+			return "BasicNode("+this.ID+", Fragment: " + fragmentId + ")";	
 		} else {
-			return "BasicNode("+this.ID+", MWOE:" + mwoe + ")";	
+			return "BasicNode("+this.ID+", Fragment: " + fragmentId + ", MWOE:" + mwoe + ")";	
 		}
 	}
 	
