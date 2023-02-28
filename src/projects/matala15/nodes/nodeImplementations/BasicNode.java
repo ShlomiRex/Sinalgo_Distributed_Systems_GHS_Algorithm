@@ -9,7 +9,8 @@ import java.util.List;
 
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
-import projects.matala15.nodes.messages.MWOEMessage;
+import projects.matala15.nodes.messages.ConnectMsg;
+import projects.matala15.nodes.messages.MWOEMsg;
 import sinalgo.configuration.WrongConfigurationException;
 import sinalgo.gui.transformation.PositionTransformation;
 import sinalgo.nodes.Node;
@@ -24,14 +25,15 @@ import sinalgo.tools.logging.Logging;
  */
 public class BasicNode extends Node {
 	
-	Logging logger = Logging.getLogger();
+	private Logging logger = Logging.getLogger();
 	
-	List<BasicNode> neighbors = new ArrayList<>(); // List of neighbor nodes.
-	boolean isServer = false; // Only 1 node in the graph is server, and is chosen at round=0 only.
-	WeightedEdge mwoe = null; // Current Minimum Weight Outgoing Edge
-	BasicNode mstParent = null; // Current Minimum Spanning Tree parent
-	int fragmentId = ID; // The fragment identifier (for GUI so its easier to debug)
-	int fragmentLeaderId = ID; // The fragment leader (id)
+	private List<BasicNode> neighbors = new ArrayList<>(); // List of neighbor nodes.
+	private boolean isServer = false; // Only 1 node in the graph is server, and is chosen at round=0 only.
+	private WeightedEdge mwoe = null; // Current Minimum Weight Outgoing Edge
+	private BasicNode mstParent = null; // Current Minimum Spanning Tree parent
+	private int fragmentId = ID; // The fragment identifier (for GUI so its easier to debug)
+	private int fragmentLeaderId = ID; // The fragment leader (id)
+	private int roundNum = 0; // The round number (we are in synchronized model so its allowed)
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -46,7 +48,7 @@ public class BasicNode extends Node {
 	}
 	
 	/**
-	 * Minimum Weight Outgoing Edge
+	 * Find and return the Minimum Weight Outgoing Edge
 	 */
 	private WeightedEdge getMWOE() {
 		WeightedEdge mwoe = null;
@@ -75,8 +77,8 @@ public class BasicNode extends Node {
 		while(inbox.hasNext()) {
 			Message m = inbox.next();
 			BasicNode sender = (BasicNode) inbox.getSender();
-			if (m instanceof MWOEMessage) {
-				MWOEMessage msg = (MWOEMessage) m;
+			if (m instanceof MWOEMsg) {
+				MWOEMsg msg = (MWOEMsg) m;
 				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);
 				if (mwoe.getWeight() == msg.weight) {
 					// Both nodes chosen the same edge to be MWOE
@@ -84,12 +86,21 @@ public class BasicNode extends Node {
 					if (ID > sender.ID) {
 						fragmentLeaderId = ID;
 					} else {
+						// Send connect message
+						ConnectMsg connectMsg = new ConnectMsg();
+						send(connectMsg, sender);
+						
+						// Combine fragments
 						fragmentLeaderId = sender.ID;
 						fragmentId = sender.getFragmentId();
 					}
 				}
+			} else if (m instanceof ConnectMsg) {
+				ConnectMsg msg = (ConnectMsg) m;
+				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);
+			} else {
+				logger.logln("ERROR: Got invalid message: " + m);
 			}
-			
 		}
 	}
 
@@ -105,21 +116,24 @@ public class BasicNode extends Node {
 
 	@Override
 	public void preStep() {
-		// Get MWOE
-		mwoe = getMWOE();
-		
-		// Broadcast
-		Message message = new MWOEMessage(mwoe.getWeight());
-		broadcast(message);
-		
-		// Set MST parent
-		logger.logln("Node " + mwoe.endNode.ID + " becomes parent of node " + ID);
-		mstParent = (BasicNode) mwoe.endNode;
-		mwoe.setIsDrawDirected(true);
+		if (roundNum == 0) {
+			// Get MWOE
+			mwoe = getMWOE();
+			
+			// Broadcast
+			Message message = new MWOEMsg(mwoe.getWeight());
+			broadcast(message);
+		}
+
+//		// Set MST parent
+//		logger.logln("Node " + mwoe.endNode.ID + " becomes parent of node " + ID);
+//		mstParent = (BasicNode) mwoe.endNode;
+//		mwoe.setIsDrawDirected(true);
 	}
 
 	@Override
 	public void postStep() {
+		roundNum += 1;
 	}
 	
 	/**
@@ -127,6 +141,7 @@ public class BasicNode extends Node {
 	 * Returns the width, height according to zoom factor, font size and more.
 	 */
 	private Pair<Integer, Integer> drawFragmentId(Graphics g, PositionTransformation pt, int fontSize) {
+		g.setColor(Color.MAGENTA);
 		String fragmentIdString = ""+fragmentId;
 		
 		// Source taken from 'Node.drawNodeAsDiskWithText()'
@@ -136,13 +151,15 @@ public class BasicNode extends Node {
 		int h = (int) Math.ceil(fm.getHeight());
 		int w = (int) Math.ceil(fm.stringWidth(fragmentIdString));
 		
-		g.setColor(Color.RED);
 		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -2;
 		g.drawString(fragmentIdString, pt.guiX - w/2, pt.guiY + h/2 + yOffset);
 		
 		return new Pair<Integer, Integer>(w, h);
 	}
 	
+	/**
+	 * Draw indicator below the node that this node is a server
+	 */
 	private void drawAsServerNode(Graphics g, PositionTransformation pt, int width, int height) {
 		int d = Math.max(width, height);
 		
@@ -156,7 +173,9 @@ public class BasicNode extends Node {
 	@Override
 	public void draw(Graphics g, PositionTransformation pt, boolean highlight) {
 		int fontSize = 22;
-		highlight = (fragmentLeaderId == ID); // Highlight the node if its the leader in the fragment
+		
+		// Highlight the node if its the leader in the fragment
+		highlight = (fragmentLeaderId == ID);
 		
 		// Draw the node
 		this.drawNodeAsDiskWithText(g, pt, highlight, ""+ID, fontSize, Color.WHITE);

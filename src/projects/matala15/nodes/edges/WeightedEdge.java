@@ -3,20 +3,26 @@ package projects.matala15.nodes.edges;
 import java.awt.Color;
 import java.awt.Graphics;
 
+import projects.sample6.nodes.nodeImplementations.TreeNode;
 import sinalgo.configuration.Configuration;
 import sinalgo.gui.helper.Arrow;
 import sinalgo.gui.transformation.PositionTransformation;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.BidirectionalEdge;
+import sinalgo.nodes.messages.Message;
 import sinalgo.tools.logging.Logging;
 
 public class WeightedEdge extends BidirectionalEdge {
 	
-	Logging logger = Logging.getLogger();
+	private Logging logger = Logging.getLogger();
 	
 	private int weight;
 	private boolean isDrawWeight = false; 
 	private boolean isDrawDirected = false;
+	
+	// Show message on the edge
+	private String message_on_edge = "";
+	private int numOfMsgsPreviouslyOnThisEdge = -1; // Used to stop drawing message if no message sent the next round
 	
 	public void setWeight(int weight) {
 		this.weight = weight;
@@ -34,7 +40,12 @@ public class WeightedEdge extends BidirectionalEdge {
 		this.isDrawDirected = value;
 	}
 	
+	/**
+	 * Draw weight on the edge
+	 */
 	private void drawWeight(Graphics g, PositionTransformation pt) {
+		g.setColor(Color.BLACK);
+		
 		// Draw text weight on the edge
 		Position start = this.startNode.getPosition();
 		Position end = this.endNode.getPosition();
@@ -57,6 +68,7 @@ public class WeightedEdge extends BidirectionalEdge {
 	 * And also increase the head size so its easier to see.
 	 */
 	private void drawArrowHead(Graphics g, PositionTransformation pt) {
+		g.setColor(getColor()); // Set color of arrowhead as the edge itself
 		// Calculate position of arrow head, where to draw
 		// Taken from source code for 'Edge.draw()'
 		Position p1 = startNode.getPosition();
@@ -116,6 +128,41 @@ public class WeightedEdge extends BidirectionalEdge {
 		g.setColor(tmpCol);
 	}
 	
+	/**
+	 * Draw message on the edge (if any are sent).
+	 * The sender message will be shown closer to the sender node.
+	 */
+	private void drawMsgOnEdge(Graphics g, PositionTransformation pt) {
+		g.setColor(Color.BLUE);
+		
+		Position start = this.startNode.getPosition();
+		Position end = this.endNode.getPosition();
+		
+		pt.translateToGUIPosition(start);
+		int fromX = pt.guiX, fromY = pt.guiY;
+		pt.translateToGUIPosition(end);
+		int toX = pt.guiX, toY = pt.guiY;
+		
+		int x = (int) ((toX + fromX)/2);
+		int y = (int) ((toY + fromY)/2);
+		
+//		if (TreeNode.FLAG_MIS_STARTED_GLOBAL == true) {
+//			int x_diff = toX - fromX;
+//			int y_diff = toY - fromY;
+//			
+//			x -= x_diff / 4;
+//			y -= y_diff / 4;
+//		}
+		
+		int x_diff = toX - fromX;
+		int y_diff = toY - fromY;
+		
+		x -= x_diff / 4;
+		y -= y_diff / 4;
+		
+		g.drawString(message_on_edge, x, y);
+	}
+	
 	@Override
 	public void draw(Graphics g, PositionTransformation pt) {
 		super.draw(g, pt);
@@ -128,6 +175,30 @@ public class WeightedEdge extends BidirectionalEdge {
 		if (isDrawDirected) {
 			drawArrowHead(g, pt);
 		}
+		
+		// Draw messages
+		int msgs = getNumberOfMessagesOnThisEdge();
+		
+		// 
+		if (msgs == 0 && numOfMsgsPreviouslyOnThisEdge != 0) {
+			message_on_edge = "";
+		}
+		if (message_on_edge != "") {
+			drawMsgOnEdge(g, pt);
+		}
+		
+		
+		logger.logln("Total messages on edge: " + this + " are: " + msgs);
+		if (numOfMsgsPreviouslyOnThisEdge == -1 && msgs > 0)
+			numOfMsgsPreviouslyOnThisEdge = msgs;
+	}
+	
+	
+	
+	@Override
+	public void addMessageForThisEdge(Message msg) {
+		super.addMessageForThisEdge(msg);
+		message_on_edge = msg.toString();
 	}
 	
 	@Override
