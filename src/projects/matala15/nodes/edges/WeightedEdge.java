@@ -177,23 +177,19 @@ public class WeightedEdge extends BidirectionalEdge {
 		}
 		
 		// Draw messages
+		// Note: its quite simple, num of messages can be 0 or 1. If we are '-1' then we initialize and show the message.
+		// If we already initialized, and num of messages == 0 then don't show previous message.
 		int msgs = getNumberOfMessagesOnThisEdge();
-		
-		// 
 		if (msgs == 0 && numOfMsgsPreviouslyOnThisEdge != 0) {
 			message_on_edge = "";
 		}
 		if (message_on_edge != "") {
 			drawMsgOnEdge(g, pt);
 		}
-		
-		
-		logger.logln("Total messages on edge: " + this + " are: " + msgs);
+		//logger.logln("Total messages on edge: " + this + " are: " + msgs);
 		if (numOfMsgsPreviouslyOnThisEdge == -1 && msgs > 0)
 			numOfMsgsPreviouslyOnThisEdge = msgs;
 	}
-	
-	
 	
 	@Override
 	public void addMessageForThisEdge(Message msg) {

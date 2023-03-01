@@ -10,6 +10,7 @@ import java.util.List;
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.messages.ConnectMsg;
+import projects.matala15.nodes.messages.ConnectOKMsg;
 import projects.matala15.nodes.messages.MWOEMsg;
 import sinalgo.configuration.WrongConfigurationException;
 import sinalgo.gui.transformation.PositionTransformation;
@@ -49,16 +50,25 @@ public class BasicNode extends Node {
 	
 	/**
 	 * Find and return the Minimum Weight Outgoing Edge
+	 * @param checkFromOtherFragment If true, this function checks that the endNode is from other fragment (not in same fragment)
+	 * @return The weighted edge.
 	 */
-	private WeightedEdge getMWOE() {
+	private WeightedEdge getMWOE(boolean checkFromOtherFragment) {
 		WeightedEdge mwoe = null;
 		for(Edge e : outgoingConnections) {
 			WeightedEdge edge = (WeightedEdge) e;
 			long weight = edge.getWeight();
 			
 			// Update new MWOE
-			if (mwoe == null || weight < mwoe.getWeight()) {
-				mwoe = edge;
+			if (checkFromOtherFragment) {
+				int endNodeFragmentId = ((BasicNode) edge.endNode).fragmentId;
+				if ( (mwoe == null || weight < mwoe.getWeight()) && endNodeFragmentId != fragmentId) {
+					mwoe = edge;
+				}
+			} else {
+				if (mwoe == null || weight < mwoe.getWeight()) {
+					mwoe = edge;
+				}
 			}
 		}
 		return mwoe;
@@ -77,9 +87,13 @@ public class BasicNode extends Node {
 		while(inbox.hasNext()) {
 			Message m = inbox.next();
 			BasicNode sender = (BasicNode) inbox.getSender();
+			
+			StringBuilder builder = new StringBuilder();
+			builder.append("Node " + this.ID + " got message: ");
+			
 			if (m instanceof MWOEMsg) {
 				MWOEMsg msg = (MWOEMsg) m;
-				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);
+				builder.append(msg);
 				if (mwoe.getWeight() == msg.weight) {
 					// Both nodes chosen the same edge to be MWOE
 					// Only one becomes leader, by higher ID
@@ -89,18 +103,27 @@ public class BasicNode extends Node {
 						// Send connect message
 						ConnectMsg connectMsg = new ConnectMsg();
 						send(connectMsg, sender);
-						
-						// Combine fragments
-						fragmentLeaderId = sender.ID;
-						fragmentId = sender.getFragmentId();
 					}
 				}
 			} else if (m instanceof ConnectMsg) {
 				ConnectMsg msg = (ConnectMsg) m;
-				logger.logln(this.ID + " got message: " + msg + " from: " + sender.ID);
+				builder.append(msg);
+				
+				// Send OK
+				ConnectOKMsg connectOkMsg = new ConnectOKMsg();
+				send(connectOkMsg, sender);
+			} else if(m instanceof ConnectOKMsg) {
+				ConnectOKMsg msg = (ConnectOKMsg) m;
+				builder.append(msg);
+				
+				// Combine fragments
+				fragmentLeaderId = sender.ID;
+				fragmentId = sender.getFragmentId();
 			} else {
-				logger.logln("ERROR: Got invalid message: " + m);
+				throw new RuntimeException("ERROR: Got invalid message: " + m);
 			}
+			builder.append(" from node: " + sender.ID);
+			logger.logln(builder.toString());
 		}
 	}
 
@@ -117,10 +140,10 @@ public class BasicNode extends Node {
 	@Override
 	public void preStep() {
 		if (roundNum == 0) {
-			// Get MWOE
-			mwoe = getMWOE();
+			// Get MWOE from different fragment (can be null!)
+			mwoe = getMWOE(true);
 			
-			// Broadcast
+			// Broadcast MWOE
 			Message message = new MWOEMsg(mwoe.getWeight());
 			broadcast(message);
 		}
@@ -197,8 +220,12 @@ public class BasicNode extends Node {
 			builder.append(", Server Node");
 		} else {
 			if (mwoe != null) {
-				builder.append(", MWOE: ").append(mwoe);
+				String nice_weight = String.format("%,d", mwoe.getWeight());
+				builder.append(", MWOE: ").append(nice_weight);
 			}
+		}
+		if (ID == fragmentLeaderId) {
+			builder.append(", Fragment Leader");
 		}
 		builder.append(")");
 		return builder.toString();
