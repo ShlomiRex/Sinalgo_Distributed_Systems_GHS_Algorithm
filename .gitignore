@@ -59,5 +59,4 @@ local.properties
 # Typically, this file would be tracked if it contains build/dependency configurations:
 #.project
 
-src/projects/matala12
 logs/
