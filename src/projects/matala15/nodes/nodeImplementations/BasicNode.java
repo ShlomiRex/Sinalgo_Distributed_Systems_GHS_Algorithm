@@ -5,17 +5,18 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
-import projects.matala15.nodes.messages.ConnectMsg;
-import projects.matala15.nodes.messages.ConnectOKMsg;
+import projects.matala15.nodes.messages.FragmentBroadcastMsg;
 import projects.matala15.nodes.messages.MWOEMsg;
+import projects.matala15.nodes.messages.NewLeaderMsg;
 import sinalgo.configuration.WrongConfigurationException;
 import sinalgo.gui.transformation.PositionTransformation;
 import sinalgo.nodes.Node;
-import sinalgo.nodes.Node.NodePopupMethod;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.nodes.messages.Inbox;
 import sinalgo.nodes.messages.Message;
@@ -31,10 +32,11 @@ public class BasicNode extends Node {
 	private List<BasicNode> neighbors = new ArrayList<>(); // List of neighbor nodes.
 	private boolean isServer = false; // Only 1 node in the graph is server, and is chosen at round=0 only.
 	private WeightedEdge mwoe = null; // Current Minimum Weight Outgoing Edge
-	private BasicNode mstParent = null; // Current Minimum Spanning Tree parent
-	private int fragmentId = ID; // The fragment identifier (for GUI so its easier to debug)
-	private int fragmentLeaderId = ID; // The fragment leader (id)
+	private int fragmentId = ID; // The fragment identifier the node is currently in
+	private int fragmentLeaderId = ID; // The fragment leader id (if this node is fragment leader, then fragmentLeaderId = ID)
 	private int roundNum = 0; // The round number (we are in synchronized model so its allowed)
+	private int broadcastId = 0; // This is for stopping broadcasting to avoid loops. The pair 'ID' and 'broadcastId' both used to distinguish a unique broadcast.
+	private Map<Integer, List<Integer>> broadcast_list = new HashMap<>(); // All the broadcast message this node has sent, used to stop the broadcast loop. The key is ID of originalSenderId. Value is list of broadcast IDs.
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -82,6 +84,80 @@ public class BasicNode extends Node {
 	public void checkRequirements() throws WrongConfigurationException {
 	}
 
+	/**
+	 * Broadcast a message to only nodes that are in the current fragment
+	 * Deals with loops
+	 * NOTE: Only use this ONCE per broadcast. Intermediate node should NOT use this function to re-broadcast.
+	 * @param msg The message to broadcast
+	 */
+	private void broadcastFragment(Message msg) {
+		logger.logln(this + " broadcasts to fragment: " + msg);
+		
+		// Wrap the intended message inside FragmentBroadcastMsg message
+		FragmentBroadcastMsg broadcastMsg = new FragmentBroadcastMsg(ID, fragmentId, msg, broadcastId);
+		
+		for(BasicNode n : neighbors) {
+			if (n.fragmentId == fragmentId) {
+				send(broadcastMsg, n);
+			}
+		}
+		broadcastId += 1;
+	}
+	
+	/**
+	 * Check if this node already broadcasted the message
+	 * @param fragmentBroadcastMsg
+	 * @return True if already broadcasted
+	 */
+	private boolean checkAlreadyBroadcasted(FragmentBroadcastMsg fragmentBroadcastMsg) {
+		// Check if we already broadcasted this message
+		List<Integer> originalSenderBroadcasts = broadcast_list.get(fragmentBroadcastMsg.getOriginalSenderId());
+		
+		// We can't find any broadcast messages from this original sender, it means that we did not broadcasted his message, yet
+		if (originalSenderBroadcasts == null)
+			return false;
+		else {
+			// Check if this message 'broadcastId' matches with the list of broadcast messages
+			int currMsgBroadcastId = fragmentBroadcastMsg.getBroadcastId();
+			for (int broadcastedId : originalSenderBroadcasts) {
+				// If it exists, that means we already broadcasted it
+				if (broadcastedId == currMsgBroadcastId) {
+					return true;
+				}
+			}
+			// This broadcastId doesn't exists in the record, so we didn't broadcast it yet
+			return false;
+		}
+	}
+	
+	/**
+	 * Rebroadcast a fragment broadcast message, update the local broadcast IDs
+	 * Intermediate nodes should use this function, rather than the function 'broadcastFragment'
+	 * @param sender The sender of this broadcast message (might be the original sender [if direct neighbor], might not [if intermediate node])
+	 * @param fragmentBroadcastMsg
+	 */
+	private void rebroadcast(Node sender, FragmentBroadcastMsg fragmentBroadcastMsg) {
+		for(BasicNode n : neighbors) {
+			if (n.fragmentId == fragmentId) {
+				// Don't send back to sender
+				if (n.ID != sender.ID) {
+					logger.logln("Node "+ID+" re-broadcasts: "+fragmentBroadcastMsg);
+					send(fragmentBroadcastMsg, n);
+				}
+			}
+		}
+		// Update local broadcast IDs to avoid loops
+		int originalSenderId = fragmentBroadcastMsg.getOriginalSenderId();
+		int originalSenderBroadcastId = fragmentBroadcastMsg.getBroadcastId();
+		
+		// If this sender ID does not exist, create new list
+		if (broadcast_list.get(originalSenderId) == null)
+			broadcast_list.put(originalSenderId, new ArrayList<Integer>());
+		
+		// Add the broadcast id to this sender id
+		broadcast_list.get(originalSenderId).add(originalSenderBroadcastId);
+	}
+	
 	@Override
 	public void handleMessages(Inbox inbox) {
 		while(inbox.hasNext()) {
@@ -91,35 +167,55 @@ public class BasicNode extends Node {
 			StringBuilder builder = new StringBuilder();
 			builder.append("Node " + this.ID + " got message: ");
 			
+			// Unwrap broadcast message
+			if (m instanceof FragmentBroadcastMsg) {
+				logger.logln("Node " + ID + " got FragmentBroadcastMsg, unwrapping");
+				FragmentBroadcastMsg fragmentBroadcastMsg = (FragmentBroadcastMsg) m;
+
+				// If some miracle the message was sent by different fragment, this should never happen (its allowed but i'm harsh on this assignment)
+				if (fragmentBroadcastMsg.getFragmentId() != fragmentId) {
+					throw new RuntimeException("ERROR: " + this + " got fragment broadcast message for "
+							+ "fragmentId="+fragmentBroadcastMsg.getFragmentId()+" which is not the intended target");
+				}
+				else {
+					// Unwrap the message and check its instance later
+					m = fragmentBroadcastMsg.getMessage();
+				}
+				
+				boolean alreadyBroadcasted = checkAlreadyBroadcasted(fragmentBroadcastMsg);
+				if (alreadyBroadcasted)
+					continue;
+				
+				// Broadcast the message
+				rebroadcast(sender, fragmentBroadcastMsg);
+
+				// Continue handling the wrapped message
+			}
+			
 			if (m instanceof MWOEMsg) {
 				MWOEMsg msg = (MWOEMsg) m;
 				builder.append(msg);
 				if (mwoe.getWeight() == msg.weight) {
-					// Both nodes chosen the same edge to be MWOE
-					// Only one becomes leader, by higher ID
+					// Both nodes chosen the same edge to be MWOE. Only one becomes leader, by higher ID
 					if (ID > sender.ID) {
+						// This node becomes the fragment leader
 						fragmentLeaderId = ID;
+						Message new_leader_msg = new NewLeaderMsg(ID);
+						broadcastFragment(new_leader_msg);
 					} else {
-						// Send connect message
-						ConnectMsg connectMsg = new ConnectMsg();
-						send(connectMsg, sender);
+						// The other node becomes the fragment leader
+						fragmentLeaderId = sender.ID;
+						fragmentId = sender.fragmentId;
 					}
 				}
-			} else if (m instanceof ConnectMsg) {
-				ConnectMsg msg = (ConnectMsg) m;
+			} else if (m instanceof NewLeaderMsg) {
+				NewLeaderMsg msg = (NewLeaderMsg) m;
 				builder.append(msg);
-				
-				// Send OK
-				ConnectOKMsg connectOkMsg = new ConnectOKMsg();
-				send(connectOkMsg, sender);
-			} else if(m instanceof ConnectOKMsg) {
-				ConnectOKMsg msg = (ConnectOKMsg) m;
-				builder.append(msg);
-				
-				// Combine fragments
-				fragmentLeaderId = sender.ID;
-				fragmentId = sender.getFragmentId();
-			} else {
+
+				// Change the current leader, locally
+				fragmentLeaderId = msg.getNewLeaderId();
+			}
+			else {
 				throw new RuntimeException("ERROR: Got invalid message: " + m);
 			}
 			builder.append(" from node: " + sender.ID);

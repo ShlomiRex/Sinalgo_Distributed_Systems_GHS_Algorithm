@@ -37,7 +37,6 @@
 package projects.matala15;
 
 
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -48,10 +47,6 @@ import javax.swing.JOptionPane;
 
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.nodeImplementations.BasicNode;
-import sinalgo.configuration.Configuration;
-import sinalgo.models.ConnectivityModelHelper;
-import sinalgo.nodes.Node;
-import sinalgo.nodes.Node.NodePopupMethod;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.runtime.AbstractCustomGlobal;
@@ -166,14 +161,14 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		logger.logln("Total number of edges: " + numTotalEdges);
 	}
 
-	@AbstractCustomGlobal.CustomButton(buttonText="Build Sample Graph", toolTipText="Builds a sample graph")
-	public void buildSampleGraph() {
+	@AbstractCustomGlobal.CustomButton(buttonText="Build custom graph", toolTipText="Builds a custom graph")
+	public void buildCustomGraph() {
 		// remove all nodes (if any)
 		Runtime.clearAllNodes();
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 5; // TODO: Change to higher number
+		int defaultNumOfNodes = 5; // TODO: Change to default higher number
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {
@@ -208,7 +203,40 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		// Repaint the GUI as we have added some nodes
 		Tools.repaintGUI();
 	}
-	
+//	
+//	@AbstractCustomGlobal.CustomButton(buttonText="Build Sample Graph", toolTipText="Builds a sample graph")
+//	public void buildSampleGraph1() {
+//		Runtime.clearAllNodes();
+//		graphNodes.clear();
+//		
+//		BasicNode node1 = new BasicNode();
+//		BasicNode node2 = new BasicNode();
+//		BasicNode node3 = new BasicNode();
+//		
+//		node1.setPosition(randomDistrubutionModel.getNextPosition());
+//		node2.setPosition(randomDistrubutionModel.getNextPosition());
+//		node3.setPosition(randomDistrubutionModel.getNextPosition());
+//		
+//		graphNodes.add(node1);
+//		graphNodes.add(node2);
+//		graphNodes.add(node3);
+//		
+//		
+//		node1.addBidirectionalConnectionTo(node2);
+//		node3.addBidirectionalConnectionTo(node2);
+//		
+//		node1.addNighbor(node2);
+//		node2.addNighbor(node1);
+//		node3.addNighbor(node2);
+//		node2.addNighbor(node3);
+//		
+//		node1.finishInitializationWithDefaultModels(true);
+//		node2.finishInitializationWithDefaultModels(true);
+//		node3.finishInitializationWithDefaultModels(true);
+//		
+//		Tools.repaintGUI();
+//	}
+//	
 	@Override
 	public void preRun() {
 		super.preRun();

@@ -2,6 +2,7 @@ package projects.matala15.nodes.edges;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.util.Random;
 
 import projects.sample6.nodes.nodeImplementations.TreeNode;
 import sinalgo.configuration.Configuration;
@@ -11,6 +12,7 @@ import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.BidirectionalEdge;
 import sinalgo.nodes.messages.Message;
 import sinalgo.tools.logging.Logging;
+import sinalgo.tools.statistics.Distribution;
 
 public class WeightedEdge extends BidirectionalEdge {
 	
@@ -23,6 +25,12 @@ public class WeightedEdge extends BidirectionalEdge {
 	// Show message on the edge
 	private String message_on_edge = "";
 	private int numOfMsgsPreviouslyOnThisEdge = -1; // Used to stop drawing message if no message sent the next round
+	
+//	public WeightedEdge() {
+//		Random random = Distribution.getRandom(); // Use configuration seed
+//		this.weight = random.nextInt(1_000_000_000) + 1;
+//		this.isDrawWeight = true;
+//	}
 	
 	public void setWeight(int weight) {
 		this.weight = weight;
