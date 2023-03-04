@@ -18,7 +18,7 @@ public class MWOEMsg extends Message {
 	@Override
 	public String toString() {
 		String nice_weight = String.format("%,d", weight);
-		return "MWOEMsg("+nice_weight+")";
+		return "MWOEMsg(\""+nice_weight+"\")";
 	}
 
 }

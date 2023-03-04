@@ -5,6 +5,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,8 @@ import java.util.Map;
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.messages.FragmentBroadcastMsg;
+import projects.matala15.nodes.messages.FragmentConvergecastMsg;
+import projects.matala15.nodes.messages.FragmentIdMsg;
 import projects.matala15.nodes.messages.MWOEMsg;
 import projects.matala15.nodes.messages.NewLeaderMsg;
 import sinalgo.configuration.WrongConfigurationException;
@@ -20,6 +23,7 @@ import sinalgo.nodes.Node;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.nodes.messages.Inbox;
 import sinalgo.nodes.messages.Message;
+import sinalgo.tools.Tools;
 import sinalgo.tools.logging.Logging;
 
 /**
@@ -37,6 +41,17 @@ public class BasicNode extends Node {
 	private int roundNum = 0; // The round number (we are in synchronized model so its allowed)
 	private int broadcastId = 0; // This is for stopping broadcasting to avoid loops. The pair 'ID' and 'broadcastId' both used to distinguish a unique broadcast.
 	private Map<Integer, List<Integer>> broadcast_list = new HashMap<>(); // All the broadcast message this node has sent, used to stop the broadcast loop. The key is ID of originalSenderId. Value is list of broadcast IDs.
+	private BasicNode mst_parent = null; // The constructed MST
+	private AlgorithmPhases currPhase;
+	private enum AlgorithmPhases {
+		PHASE_ONE,
+		PHASE_TWO,
+		PHASE_THREE,
+		PHASE_FOUR_FIVE,
+		PHASE_SIX,
+		PHASE_SEVEN
+	}
+	private List<Message> convergecast_buffer = new ArrayList<>(); // Holds list of convergecast messages. Used in phase 6, where leader waits for all convergecast messages in Big-O(N) (it fills up in multiple rounds).
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -91,7 +106,7 @@ public class BasicNode extends Node {
 	 * @param msg The message to broadcast
 	 */
 	private void broadcastFragment(Message msg) {
-		logger.logln(this + " broadcasts to fragment: " + msg);
+		logger.logln("Node "+ID+" broadcasts to fragment: " + msg);
 		
 		// Wrap the intended message inside FragmentBroadcastMsg message
 		FragmentBroadcastMsg broadcastMsg = new FragmentBroadcastMsg(ID, fragmentId, msg, broadcastId);
@@ -158,6 +173,16 @@ public class BasicNode extends Node {
 		broadcast_list.get(originalSenderId).add(originalSenderBroadcastId);
 	}
 	
+	/**
+	 * Do convergecast of any message, with intent to send the message to the fragment leader.
+	 * @param msg Any message to convergecast
+	 */
+	private void convergecast(int originalSenderId, Message msg) {
+		logger.logln("Node "+ID+" converges the message: " + msg);
+		FragmentConvergecastMsg fragmentConvergecastMsg = new FragmentConvergecastMsg(ID, msg);
+		send(fragmentConvergecastMsg, mst_parent);
+	}
+	
 	@Override
 	public void handleMessages(Inbox inbox) {
 		while(inbox.hasNext()) {
@@ -192,6 +217,7 @@ public class BasicNode extends Node {
 				// Continue handling the wrapped message
 			}
 			
+			// Handle all known messages
 			if (m instanceof MWOEMsg) {
 				MWOEMsg msg = (MWOEMsg) m;
 				builder.append(msg);
@@ -206,6 +232,10 @@ public class BasicNode extends Node {
 						// The other node becomes the fragment leader
 						fragmentLeaderId = sender.ID;
 						fragmentId = sender.fragmentId;
+						
+						// Set MST parent and direction to construct MST
+						mst_parent = (BasicNode) mwoe.endNode;
+						mwoe.setIsDrawDirected(true);
 					}
 				}
 			} else if (m instanceof NewLeaderMsg) {
@@ -214,6 +244,51 @@ public class BasicNode extends Node {
 
 				// Change the current leader, locally
 				fragmentLeaderId = msg.getNewLeaderId();
+			} else if (m instanceof FragmentIdMsg) {
+				FragmentIdMsg msg = (FragmentIdMsg) m;
+				builder.append(msg);
+				
+				// Update local neighbors fragments
+				for(BasicNode n : neighbors) {
+					if (n.ID == sender.ID) {
+						n.fragmentId = msg.getFragmentId();
+					}
+				}
+				
+				// Start phase 4
+				// Get MWOE from different fragment (can be null!)
+				long previous_mwoe_edge_id = mwoe.getID();
+				mwoe = getMWOE(true);
+				if (mwoe == null) {
+					logger.logln("Node "+ID+" has no MWOE in diffirent fragment");
+				}
+				else if (previous_mwoe_edge_id != mwoe.getID()) {
+					// That means we have new MWOE
+					logger.logln("Node "+ID+" found a new MWOE: " + mwoe);
+					
+					// Convergecast to leader
+					if (mst_parent != null) {
+						convergecast(ID, new MWOEMsg(mwoe.getWeight()));
+					}
+				}
+			}
+			// Unwrap convergecast message
+			else if (m instanceof FragmentConvergecastMsg) {
+				logger.logln("Node " + ID + " got FragmentConvergecastMsg, unwrapping");
+				FragmentConvergecastMsg fragmentConvergecastMsg = (FragmentConvergecastMsg) m;
+				
+				if (mst_parent != null) {
+					// Continue to convergecast, intermediate node
+					// NOTE: I don't have to check if multiple MWOE, and converge only the minimum, its not a REQUIREMENT, just a suggestion in the assignment.
+					convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());
+					continue;
+				} else {
+					// Fragment leader, got the message!
+					logger.logln("Fragment "+fragmentId+" leader (node "+ID+") got convergecast message: "+fragmentConvergecastMsg);
+					if (currPhase == AlgorithmPhases.PHASE_FOUR_FIVE) {
+						convergecast_buffer.add(fragmentConvergecastMsg);
+					}
+				}
 			}
 			else {
 				throw new RuntimeException("ERROR: Got invalid message: " + m);
@@ -235,19 +310,71 @@ public class BasicNode extends Node {
 
 	@Override
 	public void preStep() {
+		int totalNodes = Tools.getNodeList().size(); // Big-O(N)
+		
 		if (roundNum == 0) {
-			// Get MWOE from different fragment (can be null!)
+			// Start phase 1
+			logger.logln("Node "+ID+" starts phase 1: broadcast MWOE to determine leader");
+			currPhase = AlgorithmPhases.PHASE_ONE;
+						
+			// Get MWOE from different fragment (can be null! But since its the first round its fine, all nodes are unique fragments)
 			mwoe = getMWOE(true);
 			
-			// Broadcast MWOE
+			// Broadcast MWOE - kickstarts the entire algorithm
 			Message message = new MWOEMsg(mwoe.getWeight());
 			broadcast(message);
 		}
-
-//		// Set MST parent
-//		logger.logln("Node " + mwoe.endNode.ID + " becomes parent of node " + ID);
-//		mstParent = (BasicNode) mwoe.endNode;
-//		mwoe.setIsDrawDirected(true);
+		else if (roundNum == 1) {
+			// Start phase 2
+			logger.logln("Node "+ID+" starts phase 2: broadcast leader ID");
+			currPhase = AlgorithmPhases.PHASE_TWO;
+		}
+		// We take N time for second phase (N + second phase [2])
+		else if (roundNum == totalNodes + 2) {
+			// Start phase 3
+			logger.logln("Node "+ID+" starts phase 3: broadcast fragmentId");
+			currPhase = AlgorithmPhases.PHASE_THREE;
+			broadcast(new FragmentIdMsg(fragmentId));
+		}
+		else if (roundNum == totalNodes + 3) {
+			// Start phase 4 + 5 (immediately after finding MWOE (which takes O(1)) we convergecast)
+			logger.logln("Node "+ID+" starts phase 4 and 5: find MWOE and convergecast to fragment leader");
+			currPhase = AlgorithmPhases.PHASE_FOUR_FIVE;
+			// Wait O(N) rounds for convergecast (the professor said its ok in the forum)
+		} else if (roundNum == totalNodes*2 + 3) {
+			// Start phase 6
+			logger.logln("Node "+ID+" starts phase 6: leader broadcasts MWOE");
+			currPhase = AlgorithmPhases.PHASE_SIX;
+			
+			// Get the global fragment MWOE
+			long[] all_mwoe = new long[convergecast_buffer.size()];
+			
+			for(int i = 0; i < convergecast_buffer.size(); i++) {
+				Message m = convergecast_buffer.get(i);
+				if (m instanceof MWOEMsg) {
+					MWOEMsg msg = (MWOEMsg) m;
+					all_mwoe[i] = msg.weight;
+				} else {
+					throw new RuntimeException("Convergecast buffer contains non-MWOE message: " + m);
+				}
+			}
+			// Sort
+			Arrays.sort(all_mwoe);
+			long global_mwoe = all_mwoe[0];
+			logger.logln("Fragment "+fragmentId+"leader (node "+ID+") found a global MWOE: "+global_mwoe);
+			
+			// Clear the convergecast buffer after use
+			convergecast_buffer.clear();
+			
+			// Broadcast to fragment
+			MWOEMsg mwoeBroadcastMsg = new MWOEMsg(global_mwoe);
+			broadcastFragment(mwoeBroadcastMsg);
+			// Wait O(N) rounds for broadcast (the professor said its ok in the forum)
+		} else if (roundNum == totalNodes*3 + 3) {
+			// Start phase 7
+			logger.logln("Node "+ID+" starts phase 7:");
+			currPhase = AlgorithmPhases.PHASE_SEVEN;
+		}
 	}
 
 	@Override

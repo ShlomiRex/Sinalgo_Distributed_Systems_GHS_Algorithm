@@ -88,6 +88,8 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	projects.matala15.models.distributionModels.Random
 		randomDistrubutionModel = new projects.matala15.models.distributionModels.Random(randomSeed);
 	
+	private int roundNum = 0;
+	
 	// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 	private void addSevenEdgesPerNode() {
 		logger.logln("Adding 7 edges...");
@@ -248,7 +250,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	@Override
 	public void preRound() {
 		super.preRound();
-		logger.logln("preRound");
+		logger.logln("Round: "+roundNum+" preRound");
 
 		logTotalDirectedEdges();
 	}
@@ -259,6 +261,8 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		logger.logln("postRound");
 		
 		logTotalDirectedEdges();
+		
+		roundNum ++;
 	}
 	
 	@Override

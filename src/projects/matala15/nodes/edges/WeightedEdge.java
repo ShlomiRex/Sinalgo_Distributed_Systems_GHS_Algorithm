@@ -209,6 +209,6 @@ public class WeightedEdge extends BidirectionalEdge {
 	public String toString() {
 		// isDrawWeight is not relevant, because tooltip shows only visible edge anyway
 		String nice_weight = String.format("%,d", weight); // Add commas for big numbers to read better
-		return "WeightedEdge("+ nice_weight +", " + startNode.ID + ", " + endNode.ID + ")";
+		return "WeightedEdge(\""+ nice_weight +"\", " + startNode.ID + ", " + endNode.ID + ")";
 	}
 }
