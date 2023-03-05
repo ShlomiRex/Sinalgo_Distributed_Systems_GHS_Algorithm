@@ -266,9 +266,17 @@ public class BasicNode extends Node {
 					// That means we have new MWOE
 					logger.logln("Node "+ID+" found a new MWOE: " + mwoe);
 					
+					MWOEMsg mwoeMsg = new MWOEMsg(mwoe.getWeight());
+					
 					// Convergecast to leader
 					if (mst_parent != null) {
-						convergecast(ID, new MWOEMsg(mwoe.getWeight()));
+						// Non-leader node, converge to leader
+						convergecast(ID, mwoeMsg);
+					} else {
+						// Leader node
+						// Leader adds MWOE of its own to its own convergecast_buffer
+						logger.logln("Fragment "+fragmentId+" leader (node "+ID+") appends its own MWOE to its convergecast_buffer");
+						convergecast_buffer.add(mwoeMsg);
 					}
 				}
 			}
@@ -285,9 +293,8 @@ public class BasicNode extends Node {
 				} else {
 					// Fragment leader, got the message!
 					logger.logln("Fragment "+fragmentId+" leader (node "+ID+") got convergecast message: "+fragmentConvergecastMsg);
-					if (currPhase == AlgorithmPhases.PHASE_FOUR_FIVE) {
-						convergecast_buffer.add(fragmentConvergecastMsg);
-					}
+					// Unwrap convergecast message and add it to buffer
+					convergecast_buffer.add(fragmentConvergecastMsg.getMessage());
 				}
 			}
 			else {
@@ -347,29 +354,33 @@ public class BasicNode extends Node {
 			currPhase = AlgorithmPhases.PHASE_SIX;
 			
 			// Get the global fragment MWOE
-			long[] all_mwoe = new long[convergecast_buffer.size()];
-			
-			for(int i = 0; i < convergecast_buffer.size(); i++) {
-				Message m = convergecast_buffer.get(i);
-				if (m instanceof MWOEMsg) {
-					MWOEMsg msg = (MWOEMsg) m;
-					all_mwoe[i] = msg.weight;
-				} else {
-					throw new RuntimeException("Convergecast buffer contains non-MWOE message: " + m);
+			if (convergecast_buffer.size() != 0) {
+				long[] all_mwoe = new long[convergecast_buffer.size()];
+				
+				for(int i = 0; i < convergecast_buffer.size(); i++) {
+					Message m = convergecast_buffer.get(i);
+					if (m instanceof MWOEMsg) {
+						MWOEMsg msg = (MWOEMsg) m;
+						all_mwoe[i] = msg.weight;
+					} else {
+						throw new RuntimeException("Convergecast buffer contains non-MWOE message: " + m);
+					}
 				}
+				// Sort
+				Arrays.sort(all_mwoe);
+				long global_mwoe = all_mwoe[0];
+				logger.logln("Fragment "+fragmentId+" leader (node "+ID+") found a global MWOE: "+global_mwoe);
+				
+				// Clear the convergecast buffer after use
+				convergecast_buffer.clear();
+				
+				// Broadcast to fragment
+				MWOEMsg mwoeBroadcastMsg = new MWOEMsg(global_mwoe);
+				broadcastFragment(mwoeBroadcastMsg);
+				// Wait O(N) rounds for broadcast (the professor said its ok in the forum)
+			} else {
+				logger.logln("Node "+ID+" has empty convergecast buffer, skipping");
 			}
-			// Sort
-			Arrays.sort(all_mwoe);
-			long global_mwoe = all_mwoe[0];
-			logger.logln("Fragment "+fragmentId+"leader (node "+ID+") found a global MWOE: "+global_mwoe);
-			
-			// Clear the convergecast buffer after use
-			convergecast_buffer.clear();
-			
-			// Broadcast to fragment
-			MWOEMsg mwoeBroadcastMsg = new MWOEMsg(global_mwoe);
-			broadcastFragment(mwoeBroadcastMsg);
-			// Wait O(N) rounds for broadcast (the professor said its ok in the forum)
 		} else if (roundNum == totalNodes*3 + 3) {
 			// Start phase 7
 			logger.logln("Node "+ID+" starts phase 7:");
