@@ -3,7 +3,7 @@ package projects.matala15.nodes.messages;
 import sinalgo.nodes.messages.Message;
 
 public class FragmentIdMsg extends Message {
-	public final int fragmentId;
+	private final int fragmentId;
 	
 	public FragmentIdMsg(int fragmentId) {
 		this.fragmentId = fragmentId;

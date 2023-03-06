@@ -4,10 +4,12 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.util.Random;
 
+import projects.matala15.nodes.nodeImplementations.BasicNode;
 import projects.sample6.nodes.nodeImplementations.TreeNode;
 import sinalgo.configuration.Configuration;
 import sinalgo.gui.helper.Arrow;
 import sinalgo.gui.transformation.PositionTransformation;
+import sinalgo.nodes.Node;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.BidirectionalEdge;
 import sinalgo.nodes.messages.Message;
@@ -19,8 +21,9 @@ public class WeightedEdge extends BidirectionalEdge {
 	private Logging logger = Logging.getLogger();
 	
 	private int weight;
+	private boolean isDirected = false;
+	private Node directionHead = null;
 	private boolean isDrawWeight = false; 
-	private boolean isDrawDirected = false;
 	
 	// Show message on the edge
 	private String message_on_edge = "";
@@ -44,8 +47,22 @@ public class WeightedEdge extends BidirectionalEdge {
 		this.isDrawWeight = value;
 	}
 	
-	public void setIsDrawDirected(boolean value) {
-		this.isDrawDirected = value;
+	/**
+	 * Set direction for this edge.
+	 * @param directionHead The head (or parent) of the direction. Like tree parent. Arrow points to parent.
+	 */
+	public void setDirection(Node directionHead) {
+		if (directionHead != null) {
+			this.isDirected = true;
+		} else {
+			this.isDirected = false;
+		}
+		
+		this.directionHead = directionHead;
+		
+		if (isDirected == true && directionHead.ID != endNode.ID && directionHead.ID != startNode.ID) {
+			throw new RuntimeException("Given node argument does not match startNode or endNode, direction must be one of them");
+		}
 	}
 	
 	/**
@@ -180,8 +197,12 @@ public class WeightedEdge extends BidirectionalEdge {
 			drawWeight(g, pt);
 		
 		// Draw arrow head (like directed edge)
-		if (isDrawDirected) {
-			drawArrowHead(g, pt);
+		if (isDirected) {
+			if (directionHead.ID == endNode.ID) {
+				drawArrowHead(g, pt);				
+			} else {
+				
+			}
 		}
 		
 		// Draw messages
@@ -209,6 +230,10 @@ public class WeightedEdge extends BidirectionalEdge {
 	public String toString() {
 		// isDrawWeight is not relevant, because tooltip shows only visible edge anyway
 		String nice_weight = String.format("%,d", weight); // Add commas for big numbers to read better
-		return "WeightedEdge(\""+ nice_weight +"\", " + startNode.ID + ", " + endNode.ID + ")";
+		if (isDirected) {
+			return "WeightedEdge(\""+ nice_weight +"\", " + startNode.ID + ", " + endNode.ID + ", directedTo: "+directionHead.ID+")";
+		} else {
+			return "WeightedEdge(\""+ nice_weight +"\", " + startNode.ID + ", " + endNode.ID + ")";	
+		}
 	}
 }
