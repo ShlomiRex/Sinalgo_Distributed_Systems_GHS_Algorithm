@@ -466,7 +466,7 @@ public class BasicNode extends Node {
 		} else if(roundNum == totalNodes*5 + 3) {
 			logger.logln("Node "+ID+" finished running phase 8");
 			
-			roundNum = 0; // Start phase 1 again.
+			roundNum = -1; // Start phase 1 again. I start with negative 1 because of postStep which increments by 1, so in next round, it begins at 0.
 		}
 	}
 
