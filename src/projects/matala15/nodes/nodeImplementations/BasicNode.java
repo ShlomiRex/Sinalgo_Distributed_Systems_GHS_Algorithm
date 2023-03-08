@@ -12,13 +12,12 @@ import java.util.Map;
 
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
+import projects.matala15.nodes.messages.CombineFragmentMsg;
 import projects.matala15.nodes.messages.ConnectFragmentsMsg;
 import projects.matala15.nodes.messages.FragmentBroadcastMsg;
-import projects.matala15.nodes.messages.FragmentChangeMsg;
 import projects.matala15.nodes.messages.FragmentConvergecastMsg;
 import projects.matala15.nodes.messages.FragmentIdMsg;
 import projects.matala15.nodes.messages.MWOEMsg;
-import projects.matala15.nodes.messages.NewLeaderMsg;
 import projects.matala15.nodes.messages.NewLeaderSwitchMSTDirectionMSsg;
 import sinalgo.configuration.WrongConfigurationException;
 import sinalgo.gui.transformation.PositionTransformation;
@@ -57,6 +56,8 @@ public class BasicNode extends Node {
 	}
 	private List<Message> convergecast_buffer = new ArrayList<>(); // Holds list of convergecast messages. Used in phase 6, where leader waits for all convergecast messages in Big-O(N) (it fills up in multiple rounds).
 	private boolean isPhase7NewLeader = false; // When in phase 7, a node can become a new leader. But we must wait untill phase 6 completes, and only then on phase 7 we send convergecast to switch mst direction.
+	private boolean isFirstPhaseCycleFinished = false; // When a node doesn't finish a phase cycle (1-8) then this is false. When it finishes phase 8, its true. Its to indicate what to do in phase 2 (next cycle).
+	private int numOfNodesInFragment = 1; // Number of nodes in MST (in total). Used in phase 8 to check if the algorithm is finished. All nodes hold this.
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -121,6 +122,13 @@ public class BasicNode extends Node {
 				send(broadcastMsg, n);
 			}
 		}
+		
+		// Add to broadcast list
+		if (broadcast_list.get(ID) == null) {
+			broadcast_list.put(ID, new ArrayList<>());
+		}
+		broadcast_list.get(ID).add(broadcastId);
+		
 		broadcastId += 1;
 	}
 	
@@ -183,7 +191,7 @@ public class BasicNode extends Node {
 	 * @param msg Any message to convergecast
 	 */
 	private void convergecast(int originalSenderId, Message msg) {
-		logger.logln("Node "+ID+" converges the message: " + msg);
+		logger.logln("Node "+ID+" sends convergecast message: " + msg);
 		FragmentConvergecastMsg fragmentConvergecastMsg = new FragmentConvergecastMsg(ID, msg);
 		send(fragmentConvergecastMsg, mst_parent);
 	}
@@ -195,11 +203,11 @@ public class BasicNode extends Node {
 			BasicNode sender = (BasicNode) inbox.getSender();
 			
 			StringBuilder builder = new StringBuilder();
-			builder.append("Node " + this.ID + " got message: ");
+			builder.append("Node "+ID+" finished handling message: ");
 			
 			// Unwrap broadcast message
 			if (m instanceof FragmentBroadcastMsg) {
-				logger.logln("Node " + ID + " got FragmentBroadcastMsg, unwrapping");
+				logger.logln("Node "+ID+" got broadcast message, unwrapping");
 				FragmentBroadcastMsg fragmentBroadcastMsg = (FragmentBroadcastMsg) m;
 
 				// If some miracle the message was sent by different fragment, this should never happen (its allowed but i'm harsh on this assignment)
@@ -213,8 +221,10 @@ public class BasicNode extends Node {
 				}
 				
 				boolean alreadyBroadcasted = checkAlreadyBroadcasted(fragmentBroadcastMsg);
-				if (alreadyBroadcasted)
+				if (alreadyBroadcasted) {
+					logger.logln("Node "+ID+" already broadcasted the message, continuing");
 					continue;
+				}
 				
 				// Broadcast the message
 				rebroadcast(sender, fragmentBroadcastMsg);
@@ -223,7 +233,7 @@ public class BasicNode extends Node {
 			} 
 			// Unwrap convergecast message
 			else if (m instanceof FragmentConvergecastMsg) {
-				logger.logln("Node " + ID + " got FragmentConvergecastMsg, unwrapping");
+				logger.logln("Node " + ID + " got convergecast message, unwrapping");
 				FragmentConvergecastMsg fragmentConvergecastMsg = (FragmentConvergecastMsg) m;
 				
 				if (mst_parent != null) {
@@ -240,43 +250,26 @@ public class BasicNode extends Node {
 				}
 			}
 			
-			// Handle all known messages
+			// Handle all known messages (after unwrapping broadcast or convergecast message)
 			if (m instanceof MWOEMsg) {
 				MWOEMsg msg = (MWOEMsg) m;
 				builder.append(msg);
 				
 				if (currPhase != AlgorithmPhases.PHASE_SIX) {
+					// Can be phase 2 (after we got MWOE), in phase 1 we send the MWOE.
+					
 					if (mwoe.getWeight() == msg.weight) {
 						// Both nodes chosen the same edge to be MWOE. Only one becomes leader, by higher ID
-						if (ID > sender.ID) {
-							// This node becomes the fragment leader
-							fragmentLeaderId = ID;
-							Message new_leader_msg = new NewLeaderMsg(ID);
-							broadcastFragment(new_leader_msg);
-						} else {
-							// The other node becomes the fragment leader
-							fragmentLeaderId = sender.ID;
-							fragmentId = sender.fragmentId;
-							
-							// Set MST parent and direction to construct MST
-							mst_parent = (BasicNode) mwoe.endNode;
-							mwoe.setDirection(mwoe.endNode);
-						}
+						combineFragments(sender);
 					}
 				} else {
-					// Phase 6 - check if node has connection with same weight, if so, this node becomes the new fragment leader
+					// Phase 6
+					// Check if node has connection with same weight, if so, this node becomes the new fragment leader
 					if (mwoe.getWeight() == msg.weight) {
-						logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader");
+						logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader in next phase (phase 7)");
 						isPhase7NewLeader = true;
 					}
 				}
-				
-			} else if (m instanceof NewLeaderMsg) {
-				NewLeaderMsg msg = (NewLeaderMsg) m;
-				builder.append(msg);
-
-				// Change the current leader, locally
-				fragmentLeaderId = msg.getNewLeaderId();
 			} else if (m instanceof FragmentIdMsg) {
 				FragmentIdMsg msg = (FragmentIdMsg) m;
 				builder.append(msg);
@@ -306,9 +299,8 @@ public class BasicNode extends Node {
 						// Non-leader node, converge to leader
 						convergecast(ID, mwoeMsg);
 					} else {
-						// Leader node
-						// Leader adds MWOE of its own to its own convergecast_buffer
-						logger.logln("Fragment "+fragmentId+" leader (node "+ID+") appends its own MWOE to its convergecast_buffer");
+						// Leader node adds MWOE of its own to its own convergecast_buffer
+						logger.logln("Node "+ID+" (fragment "+fragmentId+" leader) appends its own MWOE to its convergecast_buffer");
 						convergecast_buffer.add(mwoeMsg);
 					}
 				}
@@ -321,7 +313,7 @@ public class BasicNode extends Node {
 				WeightedEdge edge = getEdgeTo(sender.ID);
 				edge.setDirection(sender);
 				convergecast_buffer.clear(); // Only the old leader will update its buffer, but we clear anyway.
-				
+					
 				// If old leader, switch to new leader and become regular node
 				if (fragmentLeaderId == ID) {
 					fragmentLeaderId = msg.getNewLeaderId();
@@ -330,9 +322,9 @@ public class BasicNode extends Node {
 				ConnectFragmentsMsg msg = (ConnectFragmentsMsg) m;
 				builder.append(msg);
 				
-				connectFragments(sender);
-			} else if (m instanceof FragmentChangeMsg) {
-				FragmentChangeMsg msg = (FragmentChangeMsg) m;
+				combineFragments(sender);
+			} else if (m instanceof CombineFragmentMsg) {
+				CombineFragmentMsg msg = (CombineFragmentMsg) m;
 				builder.append(msg);
 				
 				logger.logln("Node "+ID+" changes fragmentLeaderId from: "+fragmentLeaderId+" to: "+
@@ -340,6 +332,7 @@ public class BasicNode extends Node {
 				
 				fragmentId = msg.getNewFragmentId();
 				fragmentLeaderId = msg.getNewFragmentId();
+				numOfNodesInFragment = msg.getTotalNodesInFragment();
 			}
 			else {
 				throw new RuntimeException("ERROR: Got invalid message: " + m);
@@ -416,7 +409,8 @@ public class BasicNode extends Node {
 					// Sort
 					Arrays.sort(all_mwoe);
 					long global_mwoe = all_mwoe[0];
-					logger.logln("Fragment "+fragmentId+" leader (node "+ID+") found a global MWOE: "+global_mwoe);
+					logger.logln("Node "+ID+" (fragment "+fragmentId+" leader) found a global "
+							+ "MWOE from its convergecast buffer: "+convertToNiceWeight(global_mwoe));
 					
 					// Clear the convergecast buffer after use
 					convergecast_buffer.clear();
@@ -460,12 +454,12 @@ public class BasicNode extends Node {
 				send(connectFragmentsMsg, mwoe.endNode);
 				
 				// Connect fragments, broadcast the change to entire fragment, and change local variables
-				connectFragments((BasicNode) mwoe.endNode);
+				combineFragments((BasicNode) mwoe.endNode);
 			}
 			// Wait additional O(N) because of combine fragments, the old leader will broadcast to his fragment and notify his nodes of the change
 		} else if(roundNum == totalNodes*5 + 3) {
 			logger.logln("Node "+ID+" finished running phase 8");
-			
+			isFirstPhaseCycleFinished = true;
 			roundNum = -1; // Start phase 1 again. I start with negative 1 because of postStep which increments by 1, so in next round, it begins at 0.
 		}
 	}
@@ -530,19 +524,25 @@ public class BasicNode extends Node {
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("BasicNode(").append(this.ID).append(", Fragment: ").append(fragmentId);
+		builder.append("BasicNode(ID: ").append(ID).append(", Fragment: ").append(fragmentId);
 		
 		if (isServer) {
 			builder.append(", Server Node");
 		} else {
 			if (mwoe != null) {
-				String nice_weight = String.format("%,d", mwoe.getWeight());
-				builder.append(", MWOE: ").append(nice_weight);
+				builder.append(", MWOE: ").append(convertToNiceWeight(mwoe.getWeight()));
 			}
 		}
 		if (ID == fragmentLeaderId) {
 			builder.append(", Fragment Leader");
 		}
+		if (mst_parent != null) {
+			builder.append(", MST Parent: "+mst_parent.ID);
+		}
+		
+		builder.append(", Number of fragment nodes: "+numOfNodesInFragment);
+		builder.append(", Phase: "+currPhase.name());
+		
 		builder.append(")");
 		return builder.toString();
 	}
@@ -569,18 +569,24 @@ public class BasicNode extends Node {
 	}
 	
 	/**
-	 * Connect this ndoe to the other node, which combines the fragments and changes MST direction accordingly.
+	 * Connect this node to the other node, which combines the fragments and changes MST direction accordingly.
 	 * @param other
 	 */
-	private void connectFragments(BasicNode other) {
+	private void combineFragments(BasicNode other) {
 		logger.logln("Node "+ID+" connects to fragment of node: "+other);
+		
 		WeightedEdge weightedEdge = getEdgeTo(other.ID);
 		
 		// Whoever ID is higher becomes the leader
 		if (ID > other.ID) {
 			// This node will become the new leader
 			
-			// We don't need to broadcast to this current fragment that the leader changed, because its the same leader and same fragment.
+			// Minus 1 because the fragment children of the lower ID node 
+			// is updated before this node (with higher id), and the updated value includes this node twice, so we remove 1 so its logical.
+			numOfNodesInFragment += other.getNumberOfFragmentChildren() - 1; 
+			
+			CombineFragmentMsg combineFragmentMsg = new CombineFragmentMsg(ID, fragmentId, numOfNodesInFragment);
+			broadcastFragment(combineFragmentMsg);
 			
 			logger.logln("Node "+ID+" becomes the new leader of combined fragments");
 			fragmentLeaderId = ID;
@@ -588,10 +594,19 @@ public class BasicNode extends Node {
 			weightedEdge.setDirection(null);
 		} else {
 			// The other node will become the new leader
+						
+			numOfNodesInFragment += other.getNumberOfFragmentChildren();
+			
+			// Remove old parent from GUI (new leader edge is directed, this old edge is no longer directed)
+			if (mst_parent != null) {
+				WeightedEdge parentEdge = getEdgeTo(mst_parent.ID);
+				parentEdge.setDirection(null);
+			}
 			
 			// Broadcast that this current fragment will be changed become of combining the fragments
-			FragmentChangeMsg fragmentChangeMsg = new FragmentChangeMsg(other.ID, other.fragmentId);
-			broadcastFragment(fragmentChangeMsg);
+			CombineFragmentMsg combineFragmentMsg = new CombineFragmentMsg(other.ID, other.fragmentId, numOfNodesInFragment);
+			broadcastFragment(combineFragmentMsg);
+
 			// We broadcast first before we change our local fragment ID, leader ID because broadcastFragment will send to current fragmentId
 			// so if we change fragmentId to new fragmentId, the broadcast will be sent to wrong sub-tree.
 			
@@ -603,5 +618,12 @@ public class BasicNode extends Node {
 		}
 	}
 	
+	public int getNumberOfFragmentChildren() {
+		return numOfNodesInFragment;
+	}
 	
+	private String convertToNiceWeight(long weight) {
+		String nice_weight = String.format("%,d", weight);
+		return "\""+nice_weight+"\"";
+	}
 }

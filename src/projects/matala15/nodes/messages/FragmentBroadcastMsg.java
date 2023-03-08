@@ -4,7 +4,7 @@ import sinalgo.nodes.messages.Message;
 
 /**
  * Wrapper class for broadcasting any message across the fragment
- * @author Shlomi
+ * @author Shlomi Domnenko
  *
  */
 public class FragmentBroadcastMsg extends Message {

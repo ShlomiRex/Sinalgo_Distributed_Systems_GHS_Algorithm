@@ -2,6 +2,11 @@ package projects.matala15.nodes.messages;
 
 import sinalgo.nodes.messages.Message;
 
+/**
+ * A node sends its MWOE edge. Used in multiple phases (1, 2, 6, and more)
+ * @author Shlomi Domnenko
+ *
+ */
 public class MWOEMsg extends Message {
 
 	public final long weight;
