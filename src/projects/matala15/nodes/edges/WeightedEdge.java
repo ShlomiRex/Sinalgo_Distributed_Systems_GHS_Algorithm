@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.util.Random;
 
+import projects.matala15.CustomGlobal;
 import projects.matala15.nodes.nodeImplementations.BasicNode;
 import projects.sample6.nodes.nodeImplementations.TreeNode;
 import sinalgo.configuration.Configuration;
@@ -13,9 +14,15 @@ import sinalgo.nodes.Node;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.BidirectionalEdge;
 import sinalgo.nodes.messages.Message;
+import sinalgo.tools.Tools;
 import sinalgo.tools.logging.Logging;
 import sinalgo.tools.statistics.Distribution;
 
+/**
+ * Weighted edge that can show messages travel between nodes
+ * @author Shlomi Domnenko
+ *
+ */
 public class WeightedEdge extends BidirectionalEdge {
 	
 	private Logging logger = Logging.getLogger();
@@ -192,10 +199,6 @@ public class WeightedEdge extends BidirectionalEdge {
 	public void draw(Graphics g, PositionTransformation pt) {
 		super.draw(g, pt);
 		
-		// Draw weight
-		if (weight != 0 && isDrawWeight)
-			drawWeight(g, pt);
-		
 		// Draw arrow head (like directed edge)
 		if (isDirected) {
 			if (directionHead.ID == endNode.ID) {
@@ -204,6 +207,13 @@ public class WeightedEdge extends BidirectionalEdge {
 				
 			}
 		}
+		
+		if (CustomGlobal.IS_SIMULATION_TERMINATED)
+			return;
+		
+		// Draw weight
+		if (weight != 0 && isDrawWeight)
+			drawWeight(g, pt);
 		
 		// Draw messages
 		// Note: its quite simple, num of messages can be 0 or 1. If we are '-1' then we initialize and show the message.

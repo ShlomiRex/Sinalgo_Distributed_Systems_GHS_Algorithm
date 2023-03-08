@@ -89,6 +89,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		randomDistrubutionModel = new projects.matala15.models.distributionModels.Random(randomSeed);
 	
 	private int roundNum = 0;
+	public static boolean IS_SIMULATION_TERMINATED = false;
 	
 	// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 	private void addSevenEdgesPerNode() {
@@ -267,7 +268,10 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	
 	@Override
 	public boolean hasTerminated() {
-		return false;
+		boolean res = BasicNode.NUM_NODES_TERMINATED_SIMULATION == Tools.getNodeList().size();
+		if (res)
+			IS_SIMULATION_TERMINATED = true;
+		return true;
 	}
 	
 	private void logTotalDirectedEdges() {
