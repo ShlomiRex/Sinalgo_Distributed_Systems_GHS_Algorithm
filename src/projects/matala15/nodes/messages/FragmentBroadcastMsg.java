@@ -52,6 +52,6 @@ public class FragmentBroadcastMsg extends Message {
 	
 	@Override
 	public String toString() {
-		return "FragmentBroadcastMsg("+fragmentId+","+msg+")";
+		return "Broadcast("+fragmentId+","+msg+")";
 	}
 }

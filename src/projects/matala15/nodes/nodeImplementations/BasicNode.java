@@ -325,8 +325,17 @@ public class BasicNode extends Node {
 				logger.logln("Node "+ID+" changes fragmentLeaderId from: "+fragmentLeaderId+" to: "+
 						msg.getNewLeaderId()+" and fragmentId from: "+fragmentId+" to: "+msg.getNewFragmentId());
 				
+				// If old leader, switch direction
+				if (ID == fragmentLeaderId) {
+					if (sender.ID == msg.getNewLeaderId()) {
+						mst_parent = sender;
+						WeightedEdge edge = getEdgeTo(sender.ID);
+						edge.setDirection(sender);
+					}
+				}
+				
 				fragmentId = msg.getNewFragmentId();
-				fragmentLeaderId = msg.getNewFragmentId();
+				fragmentLeaderId = msg.getNewLeaderId();
 				numOfNodesInFragment = msg.getTotalNodesInFragment();
 			}
 			else {
@@ -420,9 +429,19 @@ public class BasicNode extends Node {
 					// Clear the convergecast buffer after use
 					convergecast_buffer.clear();
 					
+					
+					
 					// Broadcast to fragment
-					MWOEMsg mwoeBroadcastMsg = new MWOEMsg(global_mwoe);
-					broadcastFragment(mwoeBroadcastMsg);
+					MWOEMsg mwoeMsg = new MWOEMsg(global_mwoe);
+					broadcastFragment(mwoeMsg);
+					
+					// send(mwoeMsg, this); // We can't send message to ourselves, so we must check if this node is the current MWOE
+					// Check if node has connection with same weight, if so, this node becomes the new fragment leader
+					if (mwoe.getWeight() == global_mwoe) {
+						logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader in next phase (phase 7)");
+						isPhase7NewLeader = true;
+					}
+					
 					// Wait O(N) rounds for broadcast (the professor said its ok in the forum)
 				} else {
 					logger.logln("Node "+ID+" has empty convergecast buffer, skipping");
@@ -440,12 +459,17 @@ public class BasicNode extends Node {
 						NewLeaderSwitchMSTDirectionMSsg(ID);
 				convergecast(ID, newLeaderSwitchMSTDirectionMSsg);
 				
-				logger.logln("Node "+ID+" switches MST parent from: "+mst_parent.ID+" to: null (because this node becomes the new leader)");
+				String mst_parent_id = null;
+				if (mst_parent != null)
+					mst_parent_id = ""+mst_parent.ID;
+				logger.logln("Node "+ID+" switches MST parent from: "+mst_parent_id+" to: null (because this node becomes the new leader)");
 				
 				// Remove direction to old parent, because this node becomes new leader
-				WeightedEdge mst_child = getEdgeTo(mst_parent.ID);
-				mst_child.setDirection(null);
-				mst_parent = null;
+				if (mst_parent != null) {
+					WeightedEdge mst_child = getEdgeTo(mst_parent.ID);
+					mst_child.setDirection(null);
+					mst_parent = null;	
+				}
 				
 				// Become leader!
 				fragmentLeaderId = ID;
@@ -535,6 +559,24 @@ public class BasicNode extends Node {
 		// If node is server, add indicator (yellow rectangle) below the node
 		if (isServer)
 			drawAsServerNode(g, pt, widthHeight.getA(), widthHeight.getB());
+		
+		// Draw R letter if this node is phase7 leader
+		if (isPhase7NewLeader)
+			drawPhase7NewLeader(g, pt, fontSize);
+	}
+	
+	private void drawPhase7NewLeader(Graphics g, PositionTransformation pt, int fontSize) {
+		g.setColor(Color.BLUE);
+		
+		// Source taken from 'Node.drawNodeAsDiskWithText()'
+		Font font = new Font(null, 0, (int) (fontSize * pt.getZoomFactor())); 
+		g.setFont(font);
+		FontMetrics fm = g.getFontMetrics(font); 
+		int h = (int) Math.ceil(fm.getHeight());
+		int w = (int) Math.ceil(fm.stringWidth("R"));
+		
+		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -3;
+		g.drawString("R", pt.guiX - w/2, pt.guiY - h/2 - yOffset);
 	}
 	
 	@Override
@@ -591,7 +633,7 @@ public class BasicNode extends Node {
 	private void combineFragments(BasicNode other) {
 		logger.logln("Node "+ID+" connects to fragment of node: "+other);
 		
-		WeightedEdge weightedEdge = getEdgeTo(other.ID);
+		WeightedEdge edgeToSender = getEdgeTo(other.ID);
 		
 		logger.logln("Other node (ID: "+other.ID+") number of nodes in fragment: "+other.getNumberOfFragmentChildren());
 		
@@ -607,9 +649,15 @@ public class BasicNode extends Node {
 			CombineFragmentMsg combineFragmentMsg = new CombineFragmentMsg(ID, fragmentId, numOfNodesInFragment);
 			broadcastFragment(combineFragmentMsg);
 			
+			// Remove direction to old leader
+			WeightedEdge edgeToOldLeader = getEdgeTo(fragmentLeaderId);
+			if (edgeToOldLeader != null) {
+				edgeToOldLeader.setDirection(null);
+			}
+			
 			fragmentLeaderId = ID;
 			mst_parent = null;
-			weightedEdge.setDirection(null);
+			edgeToSender.setDirection(null);
 		} else {
 			// The other node will become the new leader
 			logger.logln("Node "+other.ID+" becomes the new leader of combined fragments");
@@ -631,7 +679,7 @@ public class BasicNode extends Node {
 			
 			fragmentLeaderId = other.ID;
 			mst_parent = other;
-			weightedEdge.setDirection(other);
+			edgeToSender.setDirection(other);
 			fragmentId = other.fragmentId;
 		}
 	}

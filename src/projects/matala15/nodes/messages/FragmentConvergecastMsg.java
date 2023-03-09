@@ -38,6 +38,6 @@ public class FragmentConvergecastMsg extends Message {
 	
 	@Override
 	public String toString() {
-		return "FragmentConvergecastMsg("+originalSenderId+", "+msg+")";
+		return "Convergecast("+originalSenderId+", "+msg+")";
 	}
 }
