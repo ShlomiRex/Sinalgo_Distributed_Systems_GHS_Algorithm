@@ -275,7 +275,7 @@ public class BasicNode extends Node {
 				if (currPhase != AlgorithmPhases.PHASE_SIX) {
 					// Can be phase 2 (after we got MWOE), in phase 1 we send the MWOE.
 					
-					if (mwoe.getWeight() == msg.weight) {
+					if (mwoe != null && mwoe.getWeight() == msg.weight) {
 						// Both nodes chosen the same edge to be MWOE. Only one becomes leader, by higher ID
 						combineFragments(sender);
 					}

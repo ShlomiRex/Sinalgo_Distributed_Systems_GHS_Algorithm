@@ -68,7 +68,7 @@
 		<useSameSeedAsInPreviousRun value="true" />
 
 		<!--If set to true, and useSameSeedAsInPreviousRun is set to false,  the random number generators of the framework uses the specified fixed seed.-->
-		<useFixedSeed value="false" />
+		<useFixedSeed value="true" />
 
 		<!--The seed to be used by the random number generators if useFixedSeed is set to true.-->
 		<fixedSeed value="77654767234" />
