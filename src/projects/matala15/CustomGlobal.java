@@ -171,7 +171,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 5; // TODO: Change to default higher number
+		int defaultNumOfNodes = 3; // TODO: Change to default higher number
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {
