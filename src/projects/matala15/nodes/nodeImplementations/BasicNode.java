@@ -52,14 +52,14 @@ public class BasicNode extends Node {
 		PHASE_ONE,
 		PHASE_TWO,
 		PHASE_THREE,
-		PHASE_FOUR_FIVE,
+		PHASE_FOUR,
+		PHASE_FIVE,
 		PHASE_SIX,
 		PHASE_SEVEN, 
 		PHASE_EIGHT
 	}
 	private List<Message> convergecast_buffer = new ArrayList<>(); // Holds list of convergecast messages. Used in phase 6, where leader waits for all convergecast messages in Big-O(N) (it fills up in multiple rounds).
 	private boolean isPhase7NewLeader = false; // When in phase 7, a node can become a new leader. But we must wait untill phase 6 completes, and only then on phase 7 we send convergecast to switch mst direction.
-	private boolean isFirstPhaseCycleFinished = false; // When a node doesn't finish a phase cycle (1-8) then this is false. When it finishes phase 8, its true. Its to indicate what to do in phase 2 (next cycle).
 	private int numOfNodesInFragment = 1; // Number of nodes in MST (in total). Used in phase 8 to check if the algorithm is finished. All nodes hold this.
 	public static int NUM_NODES_TERMINATED_SIMULATION = 0; // When node finishes to run, he increases this
 	private List<Pair<BasicNode, Message>> messages_buffer = new ArrayList<>();
@@ -84,6 +84,7 @@ public class BasicNode extends Node {
 	 */
 	private WeightedEdge getMWOE(boolean checkFromOtherFragment) {
 		WeightedEdge mwoe = null;
+		
 		for(Edge e : outgoingConnections) {
 			WeightedEdge edge = (WeightedEdge) e;
 			long weight = edge.getWeight();
@@ -100,11 +101,8 @@ public class BasicNode extends Node {
 				}
 			}
 		}
+		logger.logln("Node "+ID+" searched for MWOE and got: "+mwoe);
 		return mwoe;
-	}
-	
-	public int getFragmentId() {
-		return fragmentId;
 	}
 	
 	@Override
@@ -267,7 +265,7 @@ public class BasicNode extends Node {
 						// Not string message
 						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());	
 					}
-					continue;
+					//continue; //TODO: I added this to comment
 				} else {
 					// Fragment leader, got the message!
 					Message msg = fragmentConvergecastMsg.getMessage();
@@ -394,7 +392,7 @@ public class BasicNode extends Node {
 
 	private void preStepPhase1() {
 		// Start phase 1 (takes 1 round exactly)
-		logger.logln("Node "+ID+" starts phase 1: broadcast MWOE");
+		logger.logln("Node "+ID+" starts phase 1: find and broadcast MWOE");
 		currPhase = AlgorithmPhases.PHASE_ONE;
 					
 		// Get MWOE from different fragment (can be null)
@@ -449,34 +447,60 @@ public class BasicNode extends Node {
 	}
 	
 	private void preStepPhase3() {
-		// Start phase 3
+		// Start phase 3 (takes 1 round exactly)
 		logger.logln("Node "+ID+" starts phase 3: broadcast fragmentId");
 		currPhase = AlgorithmPhases.PHASE_THREE;
 		broadcast(new FragmentIdMsg(fragmentId));
 	}
 	
-	private void preStepPhase45() {
-		// Start phase 4 + 5 (immediately after finding MWOE (which takes O(1)) we convergecast)
-		logger.logln("Node "+ID+" starts phase 4 and 5: find MWOE and convergecast to fragment leader");
-		currPhase = AlgorithmPhases.PHASE_FOUR_FIVE;
+	private void preStepPhase4() {
+		// Start phase 4 (takes 1 round exactly)
+		logger.logln("Node "+ID+" starts phase 4: find MWOE");
+		currPhase = AlgorithmPhases.PHASE_FOUR;
 		
-		// Find MWOE
+		// Get MWOE from different fragment (can be null)
 		mwoe = getMWOE(true);
+	}
+	
+	private void postStepPhase4() {
+		for (Pair<BasicNode, Message> p : messages_buffer) {
+			BasicNode sender = p.getA();
+			Message m = p.getB();
+			
+			if (m instanceof FragmentIdMsg) {
+				FragmentIdMsg msg = (FragmentIdMsg) m;
+				
+				// Update local neighbors fragments
+				for(BasicNode n : neighbors) {
+					if (n.ID == sender.ID) {
+						n.fragmentId = msg.getFragmentId();
+					}
+				}
+			} else {
+				throw new RuntimeException("Unexpected message type: "+m);
+			}
+		}
+	}
+	
+	private void preStepPhase5() {
+		// Start phase 5 (takes N rounds for convergecast, professor said its ok in the forum)
+		logger.logln("Node "+ID+" starts phase 5: convergecast MWOE to fragment leader");
+		currPhase = AlgorithmPhases.PHASE_FIVE;
+
 		if (mwoe != null) {
 			MWOEMsg msg = new MWOEMsg(mwoe.getWeight());
 			convergecast(ID, msg);
 		}
-		// Wait O(N) rounds for convergecast (the professor said its ok in the forum)
 	}
 	
 	private void preStepPhase6() {
 		// Start phase 6
-		logger.logln("Node "+ID+" starts phase 6: leader broadcasts MWOE");
+		logger.logln("Node "+ID+" starts phase 6: leader finds fragment MWOE and broadcasts it");
 		currPhase = AlgorithmPhases.PHASE_SIX;
 		
 		// Only leader can start the phase
-		if (mst_parent == null) {
-			// Get the global fragment MWOE
+		if (ID == fragmentLeaderId) {
+			// Find fragment MWOE by given convergecast messages of MWOE
 			if (convergecast_buffer.size() != 0) {
 				long[] all_mwoe = new long[convergecast_buffer.size()];
 				
@@ -493,13 +517,9 @@ public class BasicNode extends Node {
 				// Sort
 				Arrays.sort(all_mwoe);
 				long global_mwoe = all_mwoe[0];
-				logger.logln("Node "+ID+" (fragment "+fragmentId+" leader) found a global "
-						+ "MWOE from its convergecast buffer: "+convertToNiceWeight(global_mwoe));
-				
-				// Clear the convergecast buffer after use
-				convergecast_buffer.clear();
-				
-				
+				logger.logln("Node "+ID+" (fragment "+fragmentId+" leader) found a fragment MWOE from its convergecast buffer: "+convertToNiceWeight(global_mwoe));
+
+				convergecast_buffer.clear(); // Clear the convergecast buffer after use
 				
 				// Broadcast to fragment
 				MWOEMsg mwoeMsg = new MWOEMsg(global_mwoe);
@@ -519,16 +539,42 @@ public class BasicNode extends Node {
 		}
 	}
 	
+	private void postStepPhase6() {
+		// If regular node
+		if (ID != fragmentLeaderId) {
+			// This node is not leader, check if it has any messages, like fragment MWOE to process
+			for (Pair<BasicNode, Message> p : messages_buffer) {
+				Message m = p.getB();
+				
+				MWOEMsg msg = (MWOEMsg) m;
+				
+				if (m instanceof MWOEMsg) {
+					// Maybe this node is on the fragment MWOE edge? Check it
+					if (mwoe.getWeight() == msg.getWeight()) {
+						logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader in next phase (phase 7)");
+						isPhase7NewLeader = true;
+						break;
+					}
+				} else {
+					throw new RuntimeException("Unexpected message type: "+m);
+				}
+			}
+		}
+	}
+	
 	private void preStepPhase7() {
 		// Start phase 7
 		logger.logln("Node "+ID+" starts phase 7: find new leader & switch edge directions to new leader");
 		currPhase = AlgorithmPhases.PHASE_SEVEN;
+		
 		if (isPhase7NewLeader) {
-			logger.logln("Node "+ID+" becomes the new leader in fragment "+fragmentId+" due to phase 7");
+			logger.logln("Node "+ID+" becomes the new leader in fragment "+fragmentId);
 			
 			// There exist only 1 (or 0) such node per fragment. We want to switch direction from old leader to new leader in MST.
 			NewLeaderSwitchMSTDirectionMSsg newLeaderSwitchMSTDirectionMSsg = new 
 					NewLeaderSwitchMSTDirectionMSsg(ID);
+			
+			// Send convergecast
 			convergecast(ID, newLeaderSwitchMSTDirectionMSsg);
 			
 			String mst_parent_id = null;
@@ -537,16 +583,38 @@ public class BasicNode extends Node {
 			logger.logln("Node "+ID+" switches MST parent from: "+mst_parent_id+" to: null (because this node becomes the new leader)");
 			
 			// Remove direction to old parent, because this node becomes new leader
-			if (mst_parent != null) {
-				WeightedEdge mst_child = getEdgeTo(mst_parent.ID);
-				mst_child.setDirection(null);
-				mst_parent = null;	
-			}
+			removeDirectionToMSTParent();
 			
-			// Become leader!
+			// Become leader
 			fragmentLeaderId = ID;
 		}
 		// Wait additional O(N) because of convergecast
+	}
+	
+	private void postStepPhase7() {
+		if (messages_buffer.size() == 0)
+			return;
+		
+		if (messages_buffer.size() > 1)
+			throw new RuntimeException("Expected to only have 1 message in round 7");
+
+		BasicNode sender = messages_buffer.get(0).getA();
+		Message m = messages_buffer.get(0).getB();
+		
+		NewLeaderSwitchMSTDirectionMSsg msg = (NewLeaderSwitchMSTDirectionMSsg) m;
+
+		logger.logln("Node "+ID+" switches MST parent from: "+mst_parent+" to: "+sender.ID);
+		mst_parent = sender;
+		
+		replaceMSTParentDirection(sender);
+		
+		convergecast_buffer.clear(); // Only the old leader will update its buffer, but we clear anyway.
+			
+		// If old leader, switch to new leader and become regular node
+		if (fragmentLeaderId == ID) {
+			fragmentLeaderId = msg.getNewLeaderId();
+		}
+
 	}
 	
 	private void preStepPhase8() {
@@ -556,7 +624,8 @@ public class BasicNode extends Node {
 		
 		if (isPhase7NewLeader) {
 			isPhase7NewLeader = false; // Phase 8 starts, we clear the old flags we used
-			// Send connect request to the MWOE
+			
+			// Send connect request to the MWOE fragment
 			ConnectFragmentsMsg connectFragmentsMsg = new ConnectFragmentsMsg();
 			send(connectFragmentsMsg, mwoe.endNode);
 			
@@ -588,22 +657,31 @@ public class BasicNode extends Node {
 		} else if (roundNum == N + 2) {
 			preStepPhase3();
 		} else if (roundNum == N + 3) {
-			preStepPhase45();
-		} else if (roundNum == N*2 + 3) {
+			preStepPhase4();
+		} else if (roundNum == N + 4) {
+			preStepPhase5();
+		} else if (roundNum == N*2 + 4) {
 			preStepPhase6();
-		} else if (roundNum == N*3 + 3) {
+		} else if (roundNum == N*3 + 4) {
 			preStepPhase7();
-		} else if(roundNum == N*4 + 3) {
+		} else if(roundNum == N*4 + 4) {
 			preStepPhase8();
 		} else if(roundNum == N*5 + 3) {
 			preStepPhase9(N);
 		}
 	}
 
+	
 	@Override
 	public void postStep() {
 		if (currPhase == AlgorithmPhases.PHASE_TWO) {
 			postStepPhase2();
+		} else if (currPhase == AlgorithmPhases.PHASE_FOUR) {
+			postStepPhase4();
+		} else if (currPhase == AlgorithmPhases.PHASE_SIX) {
+			postStepPhase6();
+		} else if (currPhase == AlgorithmPhases.PHASE_SEVEN) {
+			postStepPhase7();
 		} else if (currPhase == AlgorithmPhases.PHASE_EIGHT) {
 			if (numOfNodesInFragment == Tools.getNodeList().size()) {
 				// We finished, all nodes in fragment!
@@ -637,6 +715,7 @@ public class BasicNode extends Node {
 		return new Pair<Integer, Integer>(w, h);
 	}
 	
+	
 	/**
 	 * Draw indicator below the node that this node is a server
 	 */
@@ -667,7 +746,7 @@ public class BasicNode extends Node {
 		if (isServer)
 			drawAsServerNode(g, pt, widthHeight.getA(), widthHeight.getB());
 		
-		// Draw R letter if this node is phase7 leader
+		// Draw R letter if this node is phase7 leader, indicating this node is located on the fragment MWOE
 		if (isPhase7NewLeader)
 			drawPhase7NewLeader(g, pt, fontSize);
 	}
@@ -680,10 +759,10 @@ public class BasicNode extends Node {
 		g.setFont(font);
 		FontMetrics fm = g.getFontMetrics(font); 
 		int h = (int) Math.ceil(fm.getHeight());
-		int w = (int) Math.ceil(fm.stringWidth("R"));
+		int w = (int) Math.ceil(fm.stringWidth("r"));
 		
 		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -3;
-		g.drawString("R", pt.guiX - w/2, pt.guiY - h/2 - yOffset);
+		g.drawString("r", pt.guiX - w/2, pt.guiY - h/2 - yOffset);
 	}
 	
 	@Override
@@ -698,6 +777,7 @@ public class BasicNode extends Node {
 				builder.append(", MWOE: ").append(convertToNiceWeight(mwoe.getWeight()));
 			}
 		}
+		builder.append(", Fragment Leader ID: "+fragmentLeaderId);
 		if (ID == fragmentLeaderId) {
 			builder.append(", Fragment Leader");
 		}
@@ -726,11 +806,7 @@ public class BasicNode extends Node {
 		convergecast(ID, msg);
 	}
 	
-	/**
-	 * Return an edge from current node to the given nodeId. If doesn't exist, return null.
-	 * @param nodeId
-	 * @return
-	 */
+
 	private WeightedEdge getEdgeTo(int nodeId) {
 		for (Edge e : outgoingConnections) {
 			WeightedEdge weightedEdge = (WeightedEdge) e;
@@ -766,7 +842,7 @@ public class BasicNode extends Node {
 			
 			fragmentLeaderId = ID;
 			mst_parent = null;
-			fragmentId = fragmentId; // The current fragment ID is used for combining fragments
+			//fragmentId = fragmentId; // The current fragment ID is used for combining fragments
 			
 			// This node is the new leader, so it removes old MST parent direction
 			removeDirectionToMSTParent();
@@ -790,6 +866,7 @@ public class BasicNode extends Node {
 		phase1LeaderId = -1; // Clear
 	}
 	
+	
 	public int getNumberOfFragmentChildren() {
 		return numOfNodesInFragment;
 	}
@@ -809,6 +886,7 @@ public class BasicNode extends Node {
 			parentEdge.setDirection(null);
 		}
 	}
+	
 	
 	/**
 	 * Remove old MST parent and set direction to new MST parent
