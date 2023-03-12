@@ -253,6 +253,7 @@ public class WeightedEdge extends BidirectionalEdge {
 		if (message_on_edge != null && message_on_edge.length() > 0) {
 			builder.append(", Message on edge: " + message_on_edge);
 		}
+		builder.append(")");
 		
 		return builder.toString();
 	}

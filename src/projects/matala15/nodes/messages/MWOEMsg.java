@@ -9,10 +9,14 @@ import sinalgo.nodes.messages.Message;
  */
 public class MWOEMsg extends Message {
 
-	public final long weight;
+	private final long weight;
 	
 	public MWOEMsg(long weight) {
 		this.weight = weight;
+	}
+	
+	public long getWeight() {
+		return weight;
 	}
 	
 	@Override
