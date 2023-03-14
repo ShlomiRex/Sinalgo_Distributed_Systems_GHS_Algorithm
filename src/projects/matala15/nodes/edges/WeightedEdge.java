@@ -200,7 +200,7 @@ public class WeightedEdge extends BidirectionalEdge {
 		WeightedEdge oppositeEdge = (WeightedEdge) getOppositeEdge();
 		boolean isDrawingArrowHead = (isDirected && directionHead.ID == endNode.ID);
 		boolean isDrawMST = (CustomGlobal.IS_TOGGLE_DRAW_MST || isDirected);
-		boolean isDrawingWeight = (CustomGlobal.IS_TOGGLE_DRAW_WEIGHTS && weight != 0 && isDrawWeight && isDrawMST); 
+		boolean isDrawingWeight = (CustomGlobal.IS_TOGGLE_DRAW_WEIGHTS && weight != 0 && isDrawMST); 
 		boolean isDrawEdge = isDrawMST || isDrawingWeight || isDrawingArrowHead || oppositeEdge.isDirected;
 		boolean isDrawingMessages = (CustomGlobal.IS_TOGGLE_DRAW_MESSAGES_ON_EDGE && isDrawEdge);
 
