@@ -250,7 +250,7 @@ public class BasicNode extends Node {
 			} 
 			// Unwrap convergecast message
 			else if (m instanceof FragmentConvergecastMsg) {
-				logger.logln("Node " + ID + " got convergecast message, unwrapping");
+				logger.logln("Node " + ID + " got convergecast message from: "+sender.ID+", unwrapping");
 				FragmentConvergecastMsg fragmentConvergecastMsg = (FragmentConvergecastMsg) m;
 
 				if (mst_parent != null) {
@@ -266,7 +266,6 @@ public class BasicNode extends Node {
 						// Not string message
 						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());	
 					}
-					//continue; //TODO: I added this to comment
 				} else {
 					// Fragment leader, got the message!
 					Message msg = fragmentConvergecastMsg.getMessage();

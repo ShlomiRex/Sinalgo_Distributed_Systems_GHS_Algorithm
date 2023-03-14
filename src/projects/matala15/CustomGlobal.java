@@ -90,6 +90,9 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	
 	private int roundNum = 0;
 	public static boolean IS_SIMULATION_TERMINATED = false;
+	public static boolean IS_TOGGLE_DRAW_WEIGHTS = true;
+	public static boolean IS_TOGGLE_DRAW_MST = true;
+	public static boolean IS_TOGGLE_DRAW_MESSAGES_ON_EDGE = true;
 	
 	// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 	private void addSevenEdgesPerNode() {
@@ -201,10 +204,29 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		Tools.repaintGUI();
 	}
 
+	@AbstractCustomGlobal.CustomButton(buttonText="Toggle weights", toolTipText="Toggle between drawing weights on edges or not")
+	public void toggleDrawWeights() {
+		IS_TOGGLE_DRAW_WEIGHTS = !IS_TOGGLE_DRAW_WEIGHTS;
+		Tools.repaintGUI();
+	}
+	
+	@AbstractCustomGlobal.CustomButton(buttonText="Toggle current MST", toolTipText="Toggle between drawing directed edges or not")
+	public void toggleMST() {
+		IS_TOGGLE_DRAW_MST = !IS_TOGGLE_DRAW_MST;
+		Tools.repaintGUI();
+	}
+	
+	@AbstractCustomGlobal.CustomButton(buttonText="Toggle messages", toolTipText="Toggle between drawing messages on edge or not")
+	public void toggleDrawMessages() {
+		IS_TOGGLE_DRAW_MESSAGES_ON_EDGE = !IS_TOGGLE_DRAW_MESSAGES_ON_EDGE;
+		Tools.repaintGUI();
+	}
+	
 	@Override
 	public void preRun() {
 		super.preRun();
 		logger.logln("preRun");
+		buildCustomGraph();
 	}
 	
 	@Override

@@ -197,37 +197,43 @@ public class WeightedEdge extends BidirectionalEdge {
 	
 	@Override
 	public void draw(Graphics g, PositionTransformation pt) {
-		super.draw(g, pt);
+		WeightedEdge oppositeEdge = (WeightedEdge) getOppositeEdge();
+		boolean isDrawingArrowHead = (isDirected && directionHead.ID == endNode.ID);
+		boolean isDrawMST = (CustomGlobal.IS_TOGGLE_DRAW_MST || isDirected);
+		boolean isDrawingWeight = (CustomGlobal.IS_TOGGLE_DRAW_WEIGHTS && weight != 0 && isDrawWeight && isDrawMST); 
+		boolean isDrawEdge = isDrawMST || isDrawingWeight || isDrawingArrowHead || oppositeEdge.isDirected;
+		boolean isDrawingMessages = (CustomGlobal.IS_TOGGLE_DRAW_MESSAGES_ON_EDGE && isDrawEdge);
+
+		if (isDrawEdge)
+			super.draw(g, pt);
 		
 		// Draw arrow head (like directed edge)
-		if (isDirected) {
-			if (directionHead.ID == endNode.ID) {
-				drawArrowHead(g, pt);				
-			} else {
-				
-			}
-		}
+		if (isDrawingArrowHead)
+			drawArrowHead(g, pt);
 		
+		// If finished running simulation, don't draw the stuff below
 		if (CustomGlobal.IS_SIMULATION_TERMINATED)
 			return;
 		
 		// Draw weight
-		if (weight != 0 && isDrawWeight)
+		if (isDrawingWeight)
 			drawWeight(g, pt);
 		
 		// Draw messages
-		// Note: its quite simple, num of messages can be 0 or 1. If we are '-1' then we initialize and show the message.
-		// If we already initialized, and num of messages == 0 then don't show previous message.
-		int msgs = getNumberOfMessagesOnThisEdge();
-		if (msgs == 0 && numOfMsgsPreviouslyOnThisEdge != 0) {
-			message_on_edge = "";
+		if (isDrawingMessages) {
+			// Note: its quite simple, num of messages can be 0 or 1. If we are '-1' then we initialize and show the message.
+			// If we already initialized, and num of messages == 0 then don't show previous message.
+			int msgs = getNumberOfMessagesOnThisEdge();
+			if (msgs == 0 && numOfMsgsPreviouslyOnThisEdge != 0) {
+				message_on_edge = "";
+			}
+			if (message_on_edge != "") {
+				drawMsgOnEdge(g, pt);
+			}
+			
+			if (numOfMsgsPreviouslyOnThisEdge == -1 && msgs > 0)
+				numOfMsgsPreviouslyOnThisEdge = msgs;
 		}
-		if (message_on_edge != "") {
-			drawMsgOnEdge(g, pt);
-		}
-		//logger.logln("Total messages on edge: " + this + " are: " + msgs);
-		if (numOfMsgsPreviouslyOnThisEdge == -1 && msgs > 0)
-			numOfMsgsPreviouslyOnThisEdge = msgs;
 	}
 	
 	@Override
