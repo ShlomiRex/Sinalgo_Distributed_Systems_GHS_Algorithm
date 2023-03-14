@@ -455,7 +455,7 @@ public class BasicNode extends Node {
 				
 				if (m instanceof MWOEMsg) {
 					// Maybe this node is on the fragment MWOE edge? Check it
-					if (mwoe.getWeight() == msg.getWeight()) {
+					if (mwoe != null && mwoe.getWeight() == msg.getWeight()) {
 						logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader in next phase (phase 7)");
 						isPhase7NewLeader = true;
 						break;

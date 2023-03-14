@@ -174,7 +174,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 8; // TODO: Change to default higher number
+		int defaultNumOfNodes = 9; // TODO: Change to default higher number
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {
@@ -210,7 +210,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		Tools.repaintGUI();
 	}
 	
-	@AbstractCustomGlobal.CustomButton(buttonText="Toggle MST edges", toolTipText="Toggle between drawing directed edges or not")
+	@AbstractCustomGlobal.CustomButton(buttonText="Toggle only MST edges", toolTipText="Toggle between drawing edge that is associated with MST (directed torwards any node)")
 	public void toggleMST() {
 		IS_TOGGLE_DRAW_MST = !IS_TOGGLE_DRAW_MST;
 		Tools.repaintGUI();
