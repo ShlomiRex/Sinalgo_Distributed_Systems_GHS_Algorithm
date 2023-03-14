@@ -655,15 +655,23 @@ public class BasicNode extends Node {
 		// After phase 8 finishes
 		logger.logln("Node "+ID+" finished running phase 8");
 		
-		roundNum = N + 3 + (-1); // Start phase 4 again. I start with negative 1 because of postStep which increments by 1
+		roundNum = -1; // Start phase 1 again. I start with negative 1 because of postStep which increments by 1
+		
+		if (numOfNodesInFragment == N) {
+			// We finished, all nodes of the graph in a single fragment!
+			logger.logln("Node "+ID+" finished running the simulation");
+			NUM_NODES_TERMINATED_SIMULATION += 1;
+		} else {
+			logger.logln("Node "+ID+" starts the cycle again");
+		}
 	}
 	
 	@Override
 	public void preStep() {
-		if (NUM_NODES_TERMINATED_SIMULATION == Tools.getNodeList().size())
-			return;
-		
 		int N = Tools.getNodeList().size(); // Number of nodes (N)
+		
+		if (NUM_NODES_TERMINATED_SIMULATION == N)
+			return;
 		
 		if (roundNum == 0) {
 			preStepPhase1();
@@ -697,13 +705,7 @@ public class BasicNode extends Node {
 		} else if (currPhase == AlgorithmPhases.PHASE_SEVEN) {
 			postStepPhase7();
 		} else if (currPhase == AlgorithmPhases.PHASE_EIGHT) {
-			//TODO: Check when to terminate
 			postStepPhase8();
-//			if (numOfNodesInFragment == Tools.getNodeList().size()) {
-//				// We finished, all nodes in fragment!
-//				logger.logln("Node "+ID+" finished running the simulation");
-//				NUM_NODES_TERMINATED_SIMULATION += 1;
-//			}
 		}
 		
 		roundNum += 1;
