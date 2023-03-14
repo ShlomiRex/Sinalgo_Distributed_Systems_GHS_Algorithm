@@ -12,6 +12,7 @@ import java.util.Map;
 
 import javax.swing.JOptionPane;
 
+import projects.matala15.CustomGlobal;
 import projects.matala15.Pair;
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.messages.CombineFragmentMsg;
@@ -435,7 +436,7 @@ public class BasicNode extends Node {
 				
 				logger.logln("Node "+ID+" changes fragmentLeaderId from: "+fragmentLeaderId+" to: "+
 						msg.getNewLeaderId()+" and fragmentId from: "+fragmentId+" to: "+msg.getNewFragmentId()+
-						"and nodes in fragment from: "+numOfNodesInFragment+" to: "+msg.getTotalNodesInFragment());
+						" and nodes in fragment from: "+numOfNodesInFragment+" to: "+msg.getTotalNodesInFragment());
 
 				fragmentId = msg.getNewFragmentId();
 				fragmentLeaderId = msg.getNewLeaderId();
@@ -587,6 +588,7 @@ public class BasicNode extends Node {
 			
 			// Become leader
 			fragmentLeaderId = ID;
+			mst_parent = null;
 		}
 		// Wait additional O(N) because of convergecast
 	}
@@ -619,12 +621,10 @@ public class BasicNode extends Node {
 	
 	private void preStepPhase8() {
 		// Start phase 8 (First round checks for ConnectFragmentMsg. Only then, we do combine fragments, which takes O(N), in total O(N+1))
-		logger.logln("Node "+ID+" starts phase 8: The new leader requests to connect to fragment global MWOE");
+		logger.logln("Node "+ID+" starts phase 8: The new leader requests to connect to fragment MWOE");
 		currPhase = AlgorithmPhases.PHASE_EIGHT;
 		
 		if (isPhase7NewLeader) {
-			isPhase7NewLeader = false; // Phase 8 starts, we clear the old flags we used
-			
 			// Send connect request to the MWOE fragment
 			ConnectFragmentsMsg connectFragmentsMsg = new ConnectFragmentsMsg();
 			send(connectFragmentsMsg, mwoe.endNode);
@@ -637,8 +637,8 @@ public class BasicNode extends Node {
 			Message m = p.getB();
 			
 			if (m instanceof ConnectFragmentsMsg) {
-				if (mwoe.endNode.ID == sender.ID) {
-					// Only connect nodes that agree both on same MWOE
+				// Only connect nodes that agree both on same MWOE, AND if a non-leader node receives connect message, don't connect! Non-leaders can't connect
+				if (mwoe.endNode.ID == sender.ID && isPhase7NewLeader) {
 					combineFragments((BasicNode) mwoe.endNode);
 					break; // There exist only 1 MWOE (or 0)
 				}
@@ -722,21 +722,12 @@ public class BasicNode extends Node {
 	 * Draw fragment ID above the node
 	 * Returns the width, height according to zoom factor, font size and more.
 	 */
-	private Pair<Integer, Integer> drawFragmentId(Graphics g, PositionTransformation pt, int fontSize) {
+	private void drawFragmentId(Graphics g, PositionTransformation pt, int fontSize, int w, int h) {
 		g.setColor(Color.MAGENTA);
 		String fragmentIdString = ""+fragmentId;
 		
-		// Source taken from 'Node.drawNodeAsDiskWithText()'
-		Font font = new Font(null, 0, (int) (fontSize * pt.getZoomFactor())); 
-		g.setFont(font);
-		FontMetrics fm = g.getFontMetrics(font); 
-		int h = (int) Math.ceil(fm.getHeight());
-		int w = (int) Math.ceil(fm.stringWidth(fragmentIdString));
-		
 		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -2;
 		g.drawString(fragmentIdString, pt.guiX - w/2, pt.guiY + h/2 + yOffset);
-		
-		return new Pair<Integer, Integer>(w, h);
 	}
 	
 	/**
@@ -762,12 +753,25 @@ public class BasicNode extends Node {
 		// Draw the node
 		this.drawNodeAsDiskWithText(g, pt, highlight, ""+ID, fontSize, Color.WHITE);
 		
-		// Draw fragment ID above the node
-		Pair<Integer, Integer> widthHeight = drawFragmentId(g, pt, fontSize);
+		// Source taken from 'Node.drawNodeAsDiskWithText()'
+		// Get width, height of font by using zoom factor and length of string (fragmentId)
+		String fragmentIdString = ""+fragmentId;
+		Font font = new Font(null, 0, (int) (fontSize * pt.getZoomFactor())); 
+		g.setFont(font);
+		FontMetrics fm = g.getFontMetrics(font); 
+		int h = (int) Math.ceil(fm.getHeight());
+		int w = (int) Math.ceil(fm.stringWidth(fragmentIdString));
 		
 		// If node is server, add indicator (yellow rectangle) below the node
 		if (isServer)
-			drawAsServerNode(g, pt, widthHeight.getA(), widthHeight.getB());
+			drawAsServerNode(g, pt, w, h);
+		
+		// If finished running, no need to show fragment ID or anything below this line
+		if (CustomGlobal.IS_SIMULATION_TERMINATED)
+			return;
+		
+		// Draw fragment ID above the node
+		drawFragmentId(g, pt, fontSize, w, h);
 		
 		// Draw R letter if this node is phase7 leader, indicating this node is located on the fragment MWOE
 		if (isPhase7NewLeader)
@@ -787,6 +791,7 @@ public class BasicNode extends Node {
 		int yOffset = (int) (fontSize * pt.getZoomFactor()) * -3;
 		g.drawString("r", pt.guiX - w/2, pt.guiY - h/2 - yOffset);
 	}
+	
 	
 	@Override
 	public String toString() {
@@ -815,11 +820,13 @@ public class BasicNode extends Node {
 		return builder.toString();
 	}
 	
+	
 	@NodePopupMethod(menuText="Select as a server")
 	public void selectAsServer() {
 		isServer = true;
 		logger.logln("Setting node " + this + " as server");
 	}
+	
 	
 	@NodePopupMethod(menuText="Send message to server")
 	public void sendMessageAsClient() {
@@ -838,6 +845,7 @@ public class BasicNode extends Node {
 		}
 		return null;
 	}
+	
 	
 	/**
 	 * Connect this node to the other node, which combines the fragments and changes MST direction accordingly.

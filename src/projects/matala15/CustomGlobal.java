@@ -171,7 +171,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		graphNodes.clear();
 		
 		// Number of nodes to create
-		int defaultNumOfNodes = 5; // TODO: Change to default higher number
+		int defaultNumOfNodes = 7; // TODO: Change to default higher number
 		int numOfNodes;
 		String strNumNodes = JOptionPane.showInputDialog(null, "How many nodes to generate? (default: " + defaultNumOfNodes + ")");
 		try {
@@ -194,77 +194,37 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		
 		// Finalize (no idea why without this line, I don't see the nodes/edges)
 		for (BasicNode node : graphNodes) {
-//			logger.logln("Node: " + node);
-//			for (Edge e : node.outgoingConnections) {
-//				logger.logln("Edge: " + (WeightedEdge)e);	
-//			}
 			node.finishInitializationWithDefaultModels(true);
 		}
-		
-		logTotalDirectedEdges();
 		
 		// Repaint the GUI as we have added some nodes
 		Tools.repaintGUI();
 	}
-//	
-//	@AbstractCustomGlobal.CustomButton(buttonText="Build Sample Graph", toolTipText="Builds a sample graph")
-//	public void buildSampleGraph1() {
-//		Runtime.clearAllNodes();
-//		graphNodes.clear();
-//		
-//		BasicNode node1 = new BasicNode();
-//		BasicNode node2 = new BasicNode();
-//		BasicNode node3 = new BasicNode();
-//		
-//		node1.setPosition(randomDistrubutionModel.getNextPosition());
-//		node2.setPosition(randomDistrubutionModel.getNextPosition());
-//		node3.setPosition(randomDistrubutionModel.getNextPosition());
-//		
-//		graphNodes.add(node1);
-//		graphNodes.add(node2);
-//		graphNodes.add(node3);
-//		
-//		
-//		node1.addBidirectionalConnectionTo(node2);
-//		node3.addBidirectionalConnectionTo(node2);
-//		
-//		node1.addNighbor(node2);
-//		node2.addNighbor(node1);
-//		node3.addNighbor(node2);
-//		node2.addNighbor(node3);
-//		
-//		node1.finishInitializationWithDefaultModels(true);
-//		node2.finishInitializationWithDefaultModels(true);
-//		node3.finishInitializationWithDefaultModels(true);
-//		
-//		Tools.repaintGUI();
-//	}
-//	
+
 	@Override
 	public void preRun() {
 		super.preRun();
 		logger.logln("preRun");
-		
-		logTotalDirectedEdges();
 	}
 	
 	@Override
 	public void preRound() {
 		super.preRound();
-		logger.logln("Round: "+roundNum+" preRound");
-
-		logTotalDirectedEdges();
+		
+		if (IS_SIMULATION_TERMINATED == false) {
+			logger.logln("Round: "+roundNum+" preRound");	
+		}
 	}
 	
 	@Override
 	public void postRound() {
 		super.postRound();
-		logger.logln("postRound");
 		
-		logTotalDirectedEdges();
+		if (IS_SIMULATION_TERMINATED == false) {
+			logger.logln("postRound\n\n");			
+		}
 		
 		roundNum ++;
-		logger.logln("\n\n");
 	}
 	
 	@Override
@@ -274,14 +234,4 @@ public class CustomGlobal extends AbstractCustomGlobal{
 			IS_SIMULATION_TERMINATED = true;
 		return true;
 	}
-	
-	private void logTotalDirectedEdges() {
-//		int totalDirectedEdges = 0;
-//		for(Node n : Tools.getNodeList()) {
-//			totalDirectedEdges += n.outgoingConnections.size();
-//		}
-//		logger.logln("Total directed edges: " + totalDirectedEdges);
-	}
-	
-	
 }
