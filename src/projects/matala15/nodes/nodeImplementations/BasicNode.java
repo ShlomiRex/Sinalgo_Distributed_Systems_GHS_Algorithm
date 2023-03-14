@@ -510,9 +510,8 @@ public class BasicNode extends Node {
 		NewLeaderSwitchMSTDirectionMSsg msg = (NewLeaderSwitchMSTDirectionMSsg) m;
 
 		logger.logln("Node "+ID+" switches MST parent from: "+mst_parent+" to: "+sender.ID);
+		replaceMSTParentDirection(sender); // Its important to first remove old connection and only then update mst parent (my mistake)
 		mst_parent = sender;
-		
-		replaceMSTParentDirection(sender);
 		
 		convergecast_buffer.clear(); // Only the old leader will update its buffer, but we clear anyway.
 			
