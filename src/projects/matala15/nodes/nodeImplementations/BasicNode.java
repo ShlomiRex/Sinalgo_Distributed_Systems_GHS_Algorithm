@@ -197,7 +197,7 @@ public class BasicNode extends Node {
 	private void convergecast(int originalSenderId, Message msg) {
 		logger.logln("Node "+ID+" sends convergecast message: " + msg);
 		if (mst_parent != null) {
-			FragmentConvergecastMsg fragmentConvergecastMsg = new FragmentConvergecastMsg(ID, msg);
+			FragmentConvergecastMsg fragmentConvergecastMsg = new FragmentConvergecastMsg(originalSenderId, msg);
 			send(fragmentConvergecastMsg, mst_parent); // Non-leader node, converge to leader	
 		}
 		else {			
@@ -655,10 +655,16 @@ public class BasicNode extends Node {
 		// After phase 8 finishes
 		logger.logln("Node "+ID+" finished running phase 8");
 		
-		roundNum = -1; // Start phase 1 again. I start with negative 1 because of postStep which increments by 1
+		roundNum = N + 3 + (-1); // Start phase 4 again. I start with negative 1 because of postStep which increments by 1
 		
+		// Clear local variables
+		convergecast_buffer.clear();
+		messages_buffer.clear();
+		isPhase7NewLeader = false;
+		phase1LeaderId = -1;
+
+		// Check if all nodes are in the same fragment, if so we finished running the algorithm
 		if (numOfNodesInFragment == N) {
-			// We finished, all nodes of the graph in a single fragment!
 			logger.logln("Node "+ID+" finished running the simulation");
 			NUM_NODES_TERMINATED_SIMULATION += 1;
 		} else {
