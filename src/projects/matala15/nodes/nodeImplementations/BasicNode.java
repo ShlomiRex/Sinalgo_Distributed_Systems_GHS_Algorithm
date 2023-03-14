@@ -618,7 +618,7 @@ public class BasicNode extends Node {
 	}
 	
 	private void preStepPhase8() {
-		// Start phase 8
+		// Start phase 8 (First round checks for ConnectFragmentMsg. Only then, we do combine fragments, which takes O(N), in total O(N+1))
 		logger.logln("Node "+ID+" starts phase 8: The new leader requests to connect to fragment global MWOE");
 		currPhase = AlgorithmPhases.PHASE_EIGHT;
 		
@@ -628,17 +628,32 @@ public class BasicNode extends Node {
 			// Send connect request to the MWOE fragment
 			ConnectFragmentsMsg connectFragmentsMsg = new ConnectFragmentsMsg();
 			send(connectFragmentsMsg, mwoe.endNode);
-			
-			// Connect fragments, broadcast the change to entire fragment, and change local variables
-			combineFragments((BasicNode) mwoe.endNode);
 		}
-		// Wait additional O(N) because of combine fragments, the old leader will broadcast to his fragment and notify his nodes of the change
+	}
+	
+	private void postStepPhase8() {
+		for (Pair<BasicNode, Message> p : messages_buffer) {
+			BasicNode sender = p.getA();
+			Message m = p.getB();
+			
+			if (m instanceof ConnectFragmentsMsg) {
+				if (mwoe.endNode.ID == sender.ID) {
+					// Only connect nodes that agree both on same MWOE
+					combineFragments((BasicNode) mwoe.endNode);
+					break; // There exist only 1 MWOE (or 0)
+				}
+			} else if (m instanceof CombineFragmentMsg) {
+				CombineFragmentMsg msg = (CombineFragmentMsg) m;
+				fragmentId = msg.getNewFragmentId();
+				fragmentLeaderId = msg.getNewLeaderId();
+				numOfNodesInFragment = msg.getTotalNodesInFragment();
+			}
+		}
 	}
 	
 	private void preStepPhase9(int N) {
 		// After phase 8 finishes
 		logger.logln("Node "+ID+" finished running phase 8");
-		isFirstPhaseCycleFinished = true;
 		
 		roundNum = N + 3 + (-1); // Start phase 4 again. I start with negative 1 because of postStep which increments by 1
 	}
@@ -666,12 +681,11 @@ public class BasicNode extends Node {
 			preStepPhase7();
 		} else if(roundNum == N*4 + 4) {
 			preStepPhase8();
-		} else if(roundNum == N*5 + 3) {
+		} else if(roundNum == N*5 + 5) {
 			preStepPhase9(N);
 		}
 	}
 
-	
 	@Override
 	public void postStep() {
 		if (currPhase == AlgorithmPhases.PHASE_TWO) {
@@ -683,11 +697,13 @@ public class BasicNode extends Node {
 		} else if (currPhase == AlgorithmPhases.PHASE_SEVEN) {
 			postStepPhase7();
 		} else if (currPhase == AlgorithmPhases.PHASE_EIGHT) {
-			if (numOfNodesInFragment == Tools.getNodeList().size()) {
-				// We finished, all nodes in fragment!
-				logger.logln("Node "+ID+" finished running the simulation");
-				NUM_NODES_TERMINATED_SIMULATION += 1;
-			}
+			//TODO: Check when to terminate
+			postStepPhase8();
+//			if (numOfNodesInFragment == Tools.getNodeList().size()) {
+//				// We finished, all nodes in fragment!
+//				logger.logln("Node "+ID+" finished running the simulation");
+//				NUM_NODES_TERMINATED_SIMULATION += 1;
+//			}
 		}
 		
 		roundNum += 1;
@@ -714,7 +730,6 @@ public class BasicNode extends Node {
 		
 		return new Pair<Integer, Integer>(w, h);
 	}
-	
 	
 	/**
 	 * Draw indicator below the node that this node is a server
@@ -806,7 +821,6 @@ public class BasicNode extends Node {
 		convergecast(ID, msg);
 	}
 	
-
 	private WeightedEdge getEdgeTo(int nodeId) {
 		for (Edge e : outgoingConnections) {
 			WeightedEdge weightedEdge = (WeightedEdge) e;
@@ -828,7 +842,7 @@ public class BasicNode extends Node {
 		
 		// Whoever ID is higher becomes the leader
 		// NOTE: Order of setting variables and sending message is important in this function (after broadcasting we can change local fragmentId and leaderId)
-		if (ID == phase1LeaderId) {
+		if (ID > other.ID) {
 			// This node will become the new leader. This node also has higher ID.
 			logger.logln("Node "+ID+" becomes the new leader of combined fragments");
 
@@ -865,7 +879,6 @@ public class BasicNode extends Node {
 		}
 		phase1LeaderId = -1; // Clear
 	}
-	
 	
 	public int getNumberOfFragmentChildren() {
 		return numOfNodesInFragment;
