@@ -210,7 +210,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 		Tools.repaintGUI();
 	}
 	
-	@AbstractCustomGlobal.CustomButton(buttonText="Toggle current MST", toolTipText="Toggle between drawing directed edges or not")
+	@AbstractCustomGlobal.CustomButton(buttonText="Toggle MST edges", toolTipText="Toggle between drawing directed edges or not")
 	public void toggleMST() {
 		IS_TOGGLE_DRAW_MST = !IS_TOGGLE_DRAW_MST;
 		Tools.repaintGUI();

@@ -216,6 +216,8 @@ public class BasicNode extends Node {
 			StringBuilder builder = new StringBuilder();
 			builder.append("Node "+ID+" finished handling message: ");
 			
+			boolean skipAddingToMessageBuffer = false;
+			
 			// Unwrap broadcast message
 			if (m instanceof FragmentBroadcastMsg) {
 				logger.logln("Node "+ID+" got broadcast message, unwrapping");
@@ -266,6 +268,7 @@ public class BasicNode extends Node {
 						// Not string message
 						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());	
 					}
+					m = fragmentConvergecastMsg.getMessage();
 				} else {
 					// Fragment leader, got the message!
 					Message msg = fragmentConvergecastMsg.getMessage();

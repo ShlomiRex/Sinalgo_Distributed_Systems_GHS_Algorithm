@@ -177,15 +177,7 @@ public class WeightedEdge extends BidirectionalEdge {
 		
 		int x = (int) ((toX + fromX)/2);
 		int y = (int) ((toY + fromY)/2);
-		
-//		if (TreeNode.FLAG_MIS_STARTED_GLOBAL == true) {
-//			int x_diff = toX - fromX;
-//			int y_diff = toY - fromY;
-//			
-//			x -= x_diff / 4;
-//			y -= y_diff / 4;
-//		}
-		
+
 		int x_diff = toX - fromX;
 		int y_diff = toY - fromY;
 		
