@@ -432,7 +432,7 @@ public class BasicNode extends Node {
 				
 				// send(mwoeMsg, this); // We can't send message to ourselves, so we must check if this node is the current MWOE
 				// Check if node has connection with same weight, if so, this node becomes the new fragment leader
-				if (mwoe.getWeight() == global_mwoe) {
+				if (mwoe != null && mwoe.getWeight() == global_mwoe) {
 					logger.logln("Node "+ID+" is located on fragment MWOE edge: "+mwoe+", this node becomes new leader in next phase (phase 7)");
 					isPhase7NewLeader = true;
 				}
