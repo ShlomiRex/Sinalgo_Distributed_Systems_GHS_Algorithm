@@ -47,6 +47,7 @@ import javax.swing.JOptionPane;
 
 import projects.matala15.nodes.edges.WeightedEdge;
 import projects.matala15.nodes.nodeImplementations.BasicNode;
+import sinalgo.nodes.Node;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.runtime.AbstractCustomGlobal;
@@ -95,6 +96,9 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	public static boolean IS_TOGGLE_DRAW_MST = true;
 	public static boolean IS_TOGGLE_DRAW_MESSAGES_ON_EDGE = true;
 	
+	private long totalGraphWeight = 0; 	// Used in componenet 3
+	private List<WeightedEdge> allEdges = new ArrayList<>();
+	
 	// Add random 7 edges to each node, by closest neighbors (I don't want messy graph, we can skip the distance check)
 	private void addSevenEdgesPerNode() {
 		logger.logln("Adding 7 edges...");
@@ -135,6 +139,7 @@ public class CustomGlobal extends AbstractCustomGlobal{
 				
 				// Add edge (both are not connected[first 'if'], and their number of edges is OK)
 				currentNode.addBidirectionalConnectionTo(other);
+				
 				//logger.logln("Node " + currentNode + " connects to " + other);
 				currentNode.addNighbor(other);
 				other.addNighbor(currentNode);
@@ -152,7 +157,9 @@ public class CustomGlobal extends AbstractCustomGlobal{
 						WeightedEdge weightedEdge = (WeightedEdge) e;
 						//logger.logln("Edge added: " + weightedEdge);
 						weightedEdge.setWeight(weight);
+						totalGraphWeight += weight;
 						weightedEdge.setIsDrawWeight(true);
+						allEdges.add(weightedEdge);
 					}
 				}
 				// Find the second added edge (bidirectional = 2 edges)
@@ -249,4 +256,55 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	public boolean hasTerminated() {
 		return false;
 	}
+
+	@AbstractCustomGlobal.CustomButton(buttonText="Run Component 3", toolTipText="Calculates graph weight, and MST weight")
+	public void calculateWeightsOfComponent3() {
+		logger.logln("Calculating componenet 3...");
+		logger.logln("Total nodes in graph: "+graphNodes.size());
+		logger.logln("Total graph weight: "+convertToNiceWeight(totalGraphWeight));
+		
+		// Calculate MST weight
+		long mstGraphWeight = 0;
+		
+		// Get MST root
+		int mstRootId = graphNodes.get(0).getFragmentLeaderId(); // After algo finishes, there exist only one fragment with one leader.
+		BasicNode mstRoot = null;
+		for (BasicNode n : graphNodes)
+			if (n.ID == mstRootId)
+				mstRoot = n;
+		
+		// Iterate over all children of root
+		for (BasicNode n : mstRoot.getNeighbors()) {
+			// If neighbor is also child in MST
+			if (n.getMSTParentId() == mstRootId) {
+				// Calculate weight of subtree of this child
+				mstGraphWeight += n.getEdgeTo(mstRootId).getWeight();
+				mstGraphWeight += calculateWeightOfSubtree(n);
+			}
+		}
+		
+		logger.logln("Total MST graph weight: " +convertToNiceWeight(mstGraphWeight));
+	}
+	
+	private long calculateWeightOfSubtree(BasicNode root) {
+		long subtreeWeight = 0;
+		
+		// Iterate over all children of root
+		for (BasicNode n : root.getNeighbors()) {
+			// If neighbor is also child in MST
+			if (n.getMSTParentId() == root.ID) {
+				// Calculate weight of subtree of this child
+				subtreeWeight += n.getEdgeTo(root.ID).getWeight();
+				subtreeWeight += calculateWeightOfSubtree(n);
+			}
+		}
+		
+		return subtreeWeight;
+	}
+	
+	private String convertToNiceWeight(long weight) {
+		String nice_weight = String.format("%,d", weight);
+		return "\""+nice_weight+"\"";
+	}
+	
 }

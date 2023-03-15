@@ -4,6 +4,11 @@ import java.util.Stack;
 
 import sinalgo.nodes.messages.Message;
 
+/**
+ * This message represents the client requests and server responses.
+ * @author Shlomi Domnenko
+ *
+ */
 public class StringMsg extends Message {
 	
 	private final String msg;

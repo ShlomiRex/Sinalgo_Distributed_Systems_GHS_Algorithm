@@ -864,7 +864,7 @@ public class BasicNode extends Node {
 		clientMessage = msg;
 	}
 	
-	private WeightedEdge getEdgeTo(int nodeId) {
+	public WeightedEdge getEdgeTo(int nodeId) {
 		for (Edge e : outgoingConnections) {
 			WeightedEdge weightedEdge = (WeightedEdge) e;
 			if (weightedEdge.endNode.ID == nodeId) {
@@ -953,5 +953,15 @@ public class BasicNode extends Node {
 		removeDirectionToMSTParent();
 		WeightedEdge edgeToNewMSTParent = getEdgeTo(newMSTParent.ID);
 		edgeToNewMSTParent.setDirection(newMSTParent);
+	}
+	
+	public int getFragmentLeaderId() {
+		return fragmentLeaderId;
+	}
+	
+	public int getMSTParentId() {
+		if (mst_parent != null)
+			return mst_parent.ID;
+		return -1;
 	}
 }
