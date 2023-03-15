@@ -203,14 +203,6 @@ public class WeightedEdge extends BidirectionalEdge {
 		if (isDrawingArrowHead)
 			drawArrowHead(g, pt);
 		
-		// If finished running simulation, don't draw the stuff below
-		if (CustomGlobal.IS_SIMULATION_TERMINATED)
-			return;
-		
-		// Draw weight
-		if (isDrawingWeight)
-			drawWeight(g, pt);
-		
 		// Draw messages
 		if (isDrawingMessages) {
 			// Note: its quite simple, num of messages can be 0 or 1. If we are '-1' then we initialize and show the message.
@@ -226,6 +218,14 @@ public class WeightedEdge extends BidirectionalEdge {
 			if (numOfMsgsPreviouslyOnThisEdge == -1 && msgs > 0)
 				numOfMsgsPreviouslyOnThisEdge = msgs;
 		}
+		
+		// If finished running simulation, don't draw the stuff below
+		if (CustomGlobal.IS_SIMULATION_TERMINATED)
+			return;
+		
+		// Draw weight
+		if (isDrawingWeight)
+			drawWeight(g, pt);
 	}
 	
 	@Override

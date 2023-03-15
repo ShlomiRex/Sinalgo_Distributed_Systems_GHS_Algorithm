@@ -233,18 +233,20 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	public void preRound() {
 		super.preRound();
 		
-		if (IS_SIMULATION_TERMINATED == false) {
-			logger.logln("Round: "+roundNum+" preRound");	
-		}
+//		if (IS_SIMULATION_TERMINATED == false) {
+//			logger.logln("Round: "+roundNum+" preRound");	
+//		}
+		logger.logln("Round: "+roundNum+" preRound");	
 	}
 	
 	@Override
 	public void postRound() {
 		super.postRound();
 		
-		if (IS_SIMULATION_TERMINATED == false) {
-			logger.logln("postRound\n\n");			
-		}
+//		if (IS_SIMULATION_TERMINATED == false) {
+//			logger.logln("postRound\n\n");			
+//		}
+		logger.logln("postRound\n\n");			
 		
 		roundNum ++;
 	}

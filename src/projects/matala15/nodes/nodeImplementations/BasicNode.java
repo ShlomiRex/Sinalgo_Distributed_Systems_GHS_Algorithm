@@ -57,7 +57,8 @@ public class BasicNode extends Node {
 		PHASE_FIVE,
 		PHASE_SIX,
 		PHASE_SEVEN, 
-		PHASE_EIGHT
+		PHASE_EIGHT,
+		PHASE_FINISHED
 	}
 	private List<Message> convergecast_buffer = new ArrayList<>(); // Holds list of convergecast messages. Used in phase 6, where leader waits for all convergecast messages in Big-O(N) (it fills up in multiple rounds).
 	private boolean isPhase7NewLeader = false; // When in phase 7, a node can become a new leader. But we must wait untill phase 6 completes, and only then on phase 7 we send convergecast to switch mst direction.
@@ -215,9 +216,7 @@ public class BasicNode extends Node {
 			
 			StringBuilder builder = new StringBuilder();
 			builder.append("Node "+ID+" finished handling message: ");
-			
-			boolean skipAddingToMessageBuffer = false;
-			
+						
 			// Unwrap broadcast message
 			if (m instanceof FragmentBroadcastMsg) {
 				logger.logln("Node "+ID+" got broadcast message, unwrapping");
@@ -557,9 +556,7 @@ public class BasicNode extends Node {
 	private void preStepPhase9(int N) {
 		// After phase 8 finishes
 		logger.logln("Node "+ID+" finished running phase 8");
-		
-		roundNum = N + 3 + (-1); // Start phase 4 again. I start with negative 1 because of postStep which increments by 1
-		
+				
 		// Clear local variables
 		convergecast_buffer.clear();
 		messages_buffer.clear();
@@ -570,8 +567,36 @@ public class BasicNode extends Node {
 		if (numOfNodesInFragment == N) {
 			logger.logln("Node "+ID+" finished running the simulation");
 			NUM_NODES_TERMINATED_SIMULATION += 1;
+			currPhase = AlgorithmPhases.PHASE_FINISHED;
+			if (isServer) {
+				// Begin to switch direction to server
+				logger.logln("Server (node "+ID+") will now convergecast to MST leader, and server becomes new MST leader");
+				NewLeaderSwitchMSTDirectionMSsg msg = new NewLeaderSwitchMSTDirectionMSsg(ID);
+				convergecast(ID, msg);
+				
+				// Remove old connection to MST parent, because this is server, its new leader
+				removeDirectionToMSTParent();
+				fragmentLeaderId = ID;
+				mst_parent = null;
+			}
 		} else {
 			logger.logln("Node "+ID+" starts the cycle again");
+			roundNum = N + 3 + (-1); // Start phase 4 again. I start with negative 1 because of postStep which increments by 1
+		}
+	}
+	
+	private void postStepPhase9() {
+		if (messages_buffer.size() > 1)
+			throw new RuntimeException("After finishing GHS, we expect to have a single message (or 0) to switch to server as new MST leader");
+		
+		if (messages_buffer.size() == 1) {
+			BasicNode sender = messages_buffer.get(0).getA();
+			Message m = messages_buffer.get(0).getB();
+			NewLeaderSwitchMSTDirectionMSsg msg = (NewLeaderSwitchMSTDirectionMSsg) m;
+			logger.logln("Node "+ID+" switches MST parent from: "+mst_parent+" to: "+sender.ID);
+			replaceMSTParentDirection(sender); // Its important to first remove old connection and only then update mst parent (my mistake)
+			mst_parent = sender;
+			fragmentLeaderId = msg.getNewLeaderId();
 		}
 	}
 	
@@ -579,8 +604,8 @@ public class BasicNode extends Node {
 	public void preStep() {
 		int N = Tools.getNodeList().size(); // Number of nodes (N)
 		
-		if (NUM_NODES_TERMINATED_SIMULATION == N)
-			return;
+//		if (NUM_NODES_TERMINATED_SIMULATION == N)
+//			return;
 		
 		if (roundNum == 0) {
 			preStepPhase1();
@@ -615,6 +640,8 @@ public class BasicNode extends Node {
 			postStepPhase7();
 		} else if (currPhase == AlgorithmPhases.PHASE_EIGHT) {
 			postStepPhase8();
+		} else if (currPhase == AlgorithmPhases.PHASE_FINISHED) {
+			postStepPhase9();
 		}
 		
 		roundNum += 1;
@@ -639,9 +666,11 @@ public class BasicNode extends Node {
 	private void drawAsServerNode(Graphics g, PositionTransformation pt, int width, int height) {
 		int d = Math.max(width, height);
 		
+		// Fill color
 		g.setColor(Color.YELLOW);
 		g.fillRect(pt.guiX - width, pt.guiY + height, d, d);
 		
+		// Draw border
 		g.setColor(Color.BLACK);
 		g.drawRect(pt.guiX - width, pt.guiY + height, d, d);
 	}
