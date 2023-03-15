@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 
 import javax.swing.JOptionPane;
 
@@ -63,9 +64,14 @@ public class BasicNode extends Node {
 	private List<Message> convergecast_buffer = new ArrayList<>(); // Holds list of convergecast messages. Used in phase 6, where leader waits for all convergecast messages in Big-O(N) (it fills up in multiple rounds).
 	private boolean isPhase7NewLeader = false; // When in phase 7, a node can become a new leader. But we must wait untill phase 6 completes, and only then on phase 7 we send convergecast to switch mst direction.
 	private int numOfNodesInFragment = 1; // Number of nodes in MST (in total). Used in phase 8 to check if the algorithm is finished. All nodes hold this.
-	public static int NUM_NODES_TERMINATED_SIMULATION = 0; // When node finishes to run, he increases this
 	private List<Pair<BasicNode, Message>> messages_buffer = new ArrayList<>();
 	private int phase1LeaderId = -1;
+	private boolean isGHSFinished = false; // If this node finished running GHS this is true.
+	
+	/* POST GHS ALGORITHM */
+	
+	private boolean isClient = false; // A node becomes a client for 1 round, when it got a request from user to send message to server. It then resets back to false. Its a trigger for next round.
+	private Message clientMessage = null; // When isClient triggered, this message gets sent to server. It then resets back to null after sending it.
 	
 	public void addNighbor(BasicNode other) {
 		neighbors.add(other);
@@ -258,14 +264,15 @@ public class BasicNode extends Node {
 					// Continue to convergecast, intermediate node
 					// NOTE: I don't have to check if multiple MWOE, and converge only the minimum, its not a REQUIREMENT, just a suggestion in the assignment.
 					
-					// If string message, then add this intermediate node
-					if (fragmentConvergecastMsg.getMessage() instanceof StringMsg) {
-						StringMsg stringMsg = (StringMsg) fragmentConvergecastMsg.getMessage();
-						stringMsg.addIntermediateNode(ID);
-						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), stringMsg);
-					} else {
+					// If string message, then deal with it in diffirent place, not here.
+					if ((fragmentConvergecastMsg.getMessage() instanceof StringMsg) == false) {
+						//TODO: Remove comments
+//						StringMsg stringMsg = (StringMsg) fragmentConvergecastMsg.getMessage();
+//						stringMsg.addIntermediateNode(ID);
+//						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), stringMsg);
+						
 						// Not string message
-						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());	
+						convergecast(fragmentConvergecastMsg.getOriginalSenderId(), fragmentConvergecastMsg.getMessage());
 					}
 					m = fragmentConvergecastMsg.getMessage();
 				} else {
@@ -565,8 +572,9 @@ public class BasicNode extends Node {
 
 		// Check if all nodes are in the same fragment, if so we finished running the algorithm
 		if (numOfNodesInFragment == N) {
-			logger.logln("Node "+ID+" finished running the simulation");
-			NUM_NODES_TERMINATED_SIMULATION += 1;
+			logger.logln("Node "+ID+" finished running GHS algorithm");
+			isGHSFinished = true;	
+			//NUM_NODES_TERMINATED_SIMULATION += 1; //TODO: Remove
 			currPhase = AlgorithmPhases.PHASE_FINISHED;
 			if (isServer) {
 				// Begin to switch direction to server
@@ -587,25 +595,106 @@ public class BasicNode extends Node {
 	
 	private void postStepPhase9() {
 		if (messages_buffer.size() > 1)
-			throw new RuntimeException("After finishing GHS, we expect to have a single message (or 0) to switch to server as new MST leader");
+			throw new RuntimeException("After finishing GHS, we expect to have a zero or one messages, to switch to server as new MST leader, or client/server messages");
 		
 		if (messages_buffer.size() == 1) {
 			BasicNode sender = messages_buffer.get(0).getA();
 			Message m = messages_buffer.get(0).getB();
-			NewLeaderSwitchMSTDirectionMSsg msg = (NewLeaderSwitchMSTDirectionMSsg) m;
-			logger.logln("Node "+ID+" switches MST parent from: "+mst_parent+" to: "+sender.ID);
-			replaceMSTParentDirection(sender); // Its important to first remove old connection and only then update mst parent (my mistake)
-			mst_parent = sender;
-			fragmentLeaderId = msg.getNewLeaderId();
+			
+			if (m instanceof NewLeaderSwitchMSTDirectionMSsg) {
+				// Switch direction to server
+				NewLeaderSwitchMSTDirectionMSsg msg = (NewLeaderSwitchMSTDirectionMSsg) m;
+				logger.logln("Node "+ID+" switches MST parent from: "+mst_parent+" to: "+sender.ID);
+				replaceMSTParentDirection(sender); // Its important to first remove old connection and only then update mst parent (my mistake)
+				mst_parent = sender;
+				fragmentLeaderId = msg.getNewLeaderId();
+			} else {
+				// Handle client requests, server responses
+				logger.logln("Node "+ID+" got message of type: StringMsg");
+				StringMsg msg = (StringMsg) m;
+				
+				if (isServer) {
+					// Server
+					logger.logln("Server got the message: " + msg);
+					
+					// Create response
+					String responseStr = "Your message: \""+msg.getMessage()+"\" is received successfully, and can now be processed";
+					StringMsg responseMessage = new StringMsg(responseStr, ID, false); // Destination is NOT server, but client
+					
+					// Fill response path with the request path
+					for (int id : msg.getIntermediateNodes())
+						responseMessage.addIntermediateNode(id);
+					
+					// Send back to client
+					send(responseMessage, sender);
+				} else {
+					// Client
+					logger.logln("Node "+ID+" will send the server response back to client");
+
+					// If destination is server, we can safely convergecast 
+					if (msg.isDestinationIsServer()) {
+						msg.addIntermediateNode(ID);
+						convergecast(msg.getOriginalSenderId(), msg);	
+					} else {
+						// Else, destination is client, send in opposite path of convergecast
+						StringMsg serverResponse = new StringMsg(msg.getMessage(), msg.getOriginalSenderId(), false);
+						for (int id : msg.getIntermediateNodes()) {
+							serverResponse.addIntermediateNode(id);
+						}
+						
+						// Get last ID and remove from list
+						Stack<Integer> path = serverResponse.getIntermediateNodes();
+						int lastId = path.pop();
+						if (lastId == ID) {
+							if (path.isEmpty() == false) {
+								lastId = path.peek(); // Don't pop, since we want intermediate nodes to 'pop' their own ID.								
+							} else {
+								// We reached the client!
+								logger.logln("Client (node "+ID+") got the server response: "+msg.getMessage());
+								return;
+							}
+						}
+						else {
+							throw new RuntimeException("The last id in path should be this node's ID");
+						}
+						
+						// Send to neighbor with ID just like last ID in message path
+						boolean foundPath = false;
+						for (BasicNode n : neighbors) {
+							if (n.ID == lastId) {
+								send(serverResponse, n);
+								foundPath = true;
+								break;
+							}
+						}
+						
+						if (foundPath == false)
+							throw new RuntimeException("Couldn't find the path back to client, path: "+path);
+					}
+				}
+			}
 		}
+	}
+	
+	private void preStepAfterGHSFinished() {
+		if (isClient) {
+			logger.logln("Node "+ID+" (client) begins sending the message to server");
+			convergecast(ID, clientMessage);
+			
+			// Reset the trigger
+			isClient = false;
+			// Reset the message we don't need it anymore
+			clientMessage = null;
+		}
+	}
+	
+	private void postStepGHSFinished() {
+		logger.logln("postStepGHSFinished");
 	}
 	
 	@Override
 	public void preStep() {
 		int N = Tools.getNodeList().size(); // Number of nodes (N)
-		
-//		if (NUM_NODES_TERMINATED_SIMULATION == N)
-//			return;
 		
 		if (roundNum == 0) {
 			preStepPhase1();
@@ -625,6 +714,8 @@ public class BasicNode extends Node {
 			preStepPhase8();
 		} else if(roundNum == N*5 + 5) {
 			preStepPhase9(N);
+		} else if (isGHSFinished) {
+			preStepAfterGHSFinished();	
 		}
 	}
 
@@ -642,6 +733,8 @@ public class BasicNode extends Node {
 			postStepPhase8();
 		} else if (currPhase == AlgorithmPhases.PHASE_FINISHED) {
 			postStepPhase9();
+		} else if (isGHSFinished) {
+			postStepGHSFinished();
 		}
 		
 		roundNum += 1;
@@ -724,7 +817,6 @@ public class BasicNode extends Node {
 		g.drawString("r", pt.guiX - w/2, pt.guiY - h/2 - yOffset);
 	}
 	
-	
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
@@ -752,20 +844,24 @@ public class BasicNode extends Node {
 		return builder.toString();
 	}
 	
-	
 	@NodePopupMethod(menuText="Select as a server")
 	public void selectAsServer() {
 		isServer = true;
 		logger.logln("Setting node " + this + " as server");
 	}
 	
-	
 	@NodePopupMethod(menuText="Send message to server")
 	public void sendMessageAsClient() {
 		String str = JOptionPane.showInputDialog(null, "Send a message to server:");
-		logger.logln("Client "+ID+" is sending message to server: "+str);
-		StringMsg msg = new StringMsg(str);
-		convergecast(ID, msg);
+		logger.logln("Client "+ID+" is sending message to server: \""+str+"\"");
+		logger.logln("The message will be sent next round\n\n");
+		
+		StringMsg msg = new StringMsg(str, ID, true);
+		msg.addIntermediateNode(ID);
+		
+		// Setup triggers for next round
+		isClient = true;
+		clientMessage = msg;
 	}
 	
 	private WeightedEdge getEdgeTo(int nodeId) {

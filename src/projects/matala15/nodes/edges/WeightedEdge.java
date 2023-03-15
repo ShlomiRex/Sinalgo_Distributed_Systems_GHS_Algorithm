@@ -219,10 +219,6 @@ public class WeightedEdge extends BidirectionalEdge {
 				numOfMsgsPreviouslyOnThisEdge = msgs;
 		}
 		
-		// If finished running simulation, don't draw the stuff below
-		if (CustomGlobal.IS_SIMULATION_TERMINATED)
-			return;
-		
 		// Draw weight
 		if (isDrawingWeight)
 			drawWeight(g, pt);

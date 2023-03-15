@@ -50,6 +50,7 @@ import projects.matala15.nodes.nodeImplementations.BasicNode;
 import sinalgo.nodes.Position;
 import sinalgo.nodes.edges.Edge;
 import sinalgo.runtime.AbstractCustomGlobal;
+import sinalgo.runtime.Global;
 import sinalgo.runtime.Runtime;
 import sinalgo.tools.Tools;
 import sinalgo.tools.logging.Logging;
@@ -233,29 +234,19 @@ public class CustomGlobal extends AbstractCustomGlobal{
 	public void preRound() {
 		super.preRound();
 		
-//		if (IS_SIMULATION_TERMINATED == false) {
-//			logger.logln("Round: "+roundNum+" preRound");	
-//		}
-		logger.logln("Round: "+roundNum+" preRound");	
+		logger.logln("Round: "+roundNum+" preRound");
 	}
 	
 	@Override
 	public void postRound() {
 		super.postRound();
-		
-//		if (IS_SIMULATION_TERMINATED == false) {
-//			logger.logln("postRound\n\n");			
-//		}
+
 		logger.logln("postRound\n\n");			
-		
 		roundNum ++;
 	}
 	
 	@Override
 	public boolean hasTerminated() {
-		boolean res = BasicNode.NUM_NODES_TERMINATED_SIMULATION == Tools.getNodeList().size();
-		if (res)
-			IS_SIMULATION_TERMINATED = true;
-		return true;
+		return false;
 	}
 }
